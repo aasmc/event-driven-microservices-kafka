@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project version="4">
+  <component name="ExternalStorageConfigurationManager" enabled="true" />
+  <component name="FrameworkDetectionExcludesConfiguration">
+    <file type="web" url="file://$PROJECT_DIR$/email-service" />
+    <file type="web" url="file://$PROJECT_DIR$/fraud-service" />
+    <file type="web" url="file://$PROJECT_DIR$/inventory-service" />
+    <file type="web" url="file://$PROJECT_DIR$/order-details-service" />
+    <file type="web" url="file://$PROJECT_DIR$/orders-service" />
+    <file type="web" url="file://$PROJECT_DIR$/validation-aggregator-service" />
+  </component>
+  <component name="ProjectRootManager">
+    <output url="file://$PROJECT_DIR$/out" />
+  </component>
+  <component name="ProjectType">
+    <option name="id" value="jpab" />
+  </component>
+</project>
