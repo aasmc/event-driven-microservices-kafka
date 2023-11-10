@@ -1,0 +1,20 @@
+[
+{"namespace": "ru.aasmc.avro.eventdriven",
+ "type": "enum",
+ "name": "OrderValidationType",
+ "symbols" : ["INVENTORY_CHECK", "FRAUD_CHECK", "ORDER_DETAILS_CHECK"]
+},
+{"namespace": "ru.aasmc.avro.eventdriven",
+ "type": "enum",
+ "name": "OrderValidationResult",
+ "symbols" : ["PASS", "FAIL", "ERROR"]
+},
+{"namespace": "ru.aasmc.avro.eventdriven",
+ "type": "record",
+ "name": "OrderValidation",
+ "fields": [
+     {"name": "orderId", "type": "string"},
+     {"name": "checkType", "type": "OrderValidationType"},
+     {"name": "validationResult",  "type": "OrderValidationResult"}
+ ]
+}]
