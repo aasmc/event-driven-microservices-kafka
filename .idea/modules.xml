@@ -2,7 +2,13 @@
 <project version="4">
   <component name="ProjectModuleManager">
     <modules>
+      <module fileurl="file://$PROJECT_DIR$/.idea/modules/email-service.main.iml" filepath="$PROJECT_DIR$/.idea/modules/email-service.main.iml" />
       <module fileurl="file://$PROJECT_DIR$/.idea/event-driven-microservices-kafka.iml" filepath="$PROJECT_DIR$/.idea/event-driven-microservices-kafka.iml" />
+      <module fileurl="file://$PROJECT_DIR$/.idea/modules/fraud-service.main.iml" filepath="$PROJECT_DIR$/.idea/modules/fraud-service.main.iml" />
+      <module fileurl="file://$PROJECT_DIR$/.idea/modules/inventory-service.main.iml" filepath="$PROJECT_DIR$/.idea/modules/inventory-service.main.iml" />
+      <module fileurl="file://$PROJECT_DIR$/.idea/modules/order-details-service.main.iml" filepath="$PROJECT_DIR$/.idea/modules/order-details-service.main.iml" />
+      <module fileurl="file://$PROJECT_DIR$/.idea/modules/orders-service.main.iml" filepath="$PROJECT_DIR$/.idea/modules/orders-service.main.iml" />
+      <module fileurl="file://$PROJECT_DIR$/.idea/modules/validation-aggregator-service.main.iml" filepath="$PROJECT_DIR$/.idea/modules/validation-aggregator-service.main.iml" />
     </modules>
   </component>
 </project>

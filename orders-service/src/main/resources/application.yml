@@ -1,0 +1,30 @@
+server:
+  port: 8000
+
+spring:
+  application:
+    name: order-service
+  kafka:
+    bootstrap-servers: ${kafkaprops.bootstrapServers}
+    producer:
+      key-serializer: org.apache.kafka.common.serialization.StringSerializer
+      value-serializer: io.confluent.kafka.serializers.KafkaAvroSerializer
+      bootstrap-servers: ${kafkaprops.bootstrapServers}
+
+
+
+kafkaprops:
+  bootstrapServers: localhost:9092
+  schemaRegistryUrl: localhost:8081
+  autoOffsetReset: earliest
+  processingGuarantee: at_least_once
+  commitInterval: 1
+  sessionTimeout: 30000
+  stateDir: "/tmp/kafka-streams"
+  appId: ${spring.application.name}
+
+ordersprops:
+  topic: orders.v1
+  partitions: 3
+  replication: 1
+  storeName: orders-store
