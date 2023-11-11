@@ -2,7 +2,7 @@ version: '3.0'
 
 services:
   zookeeper:
-    image: confluentinc/cp-zookeeper:7.2.1
+    image: confluentinc/cp-zookeeper:7.5.2
     hostname: zookeeper
     container_name: zookeeper
     deploy:
@@ -18,7 +18,7 @@ services:
       ZOOKEEPER_TICK_TIME: 2000
 
   kafka:
-    image: confluentinc/cp-kafka:7.2.1
+    image: confluentinc/cp-kafka:7.5.2
     hostname: kafka
     container_name: kafka
     deploy:
@@ -45,7 +45,7 @@ services:
       KAFKA_CONFLUENT_SCHEMA_REGISTRY_URL: http://schema-registry:8081
 
   schema-registry:
-    image: confluentinc/cp-schema-registry:7.2.1
+    image: confluentinc/cp-schema-registry:7.5.2
     hostname: schema-registry
     container_name: schema-registry
     deploy:
