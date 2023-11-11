@@ -37,9 +37,11 @@ class KafkaConfig(
     fun kStreamsConfig(): KafkaStreamsConfiguration {
         val props = hashMapOf<String, Any>(
             StreamsConfig.APPLICATION_ID_CONFIG to kafkaProps.appId,
+            // must be specified to enable InteractiveQueries and checking metadata of Kafka Cluster
             StreamsConfig.APPLICATION_SERVER_CONFIG to serviceUtils.getServerAddress(),
             StreamsConfig.BOOTSTRAP_SERVERS_CONFIG to kafkaProps.bootstrapServers,
             StreamsConfig.DEFAULT_KEY_SERDE_CLASS_CONFIG to Serdes.String().javaClass.name,
+            // instances MUST have different stateDir
             StreamsConfig.STATE_DIR_CONFIG to kafkaProps.stateDir,
             ConsumerConfig.AUTO_OFFSET_RESET_CONFIG to kafkaProps.autoOffsetReset,
             StreamsConfig.PROCESSING_GUARANTEE_CONFIG to kafkaProps.processingGuarantee,
