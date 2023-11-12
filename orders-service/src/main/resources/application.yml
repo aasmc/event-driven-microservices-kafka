@@ -37,6 +37,7 @@ kafkaprops:
   enableIdempotence: false
   acks: all
   clientId: ${spring.application.name}
+  enableExactlyOnce: false
 
 ordersprops:
   topic: orders.v1

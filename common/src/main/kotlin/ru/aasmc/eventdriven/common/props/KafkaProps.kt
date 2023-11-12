@@ -12,5 +12,9 @@ class KafkaProps @ConstructorBinding constructor(
     val commitInterval: Int,
     val sessionTimeout: Int,
     val stateDir: String,
-    val appId: String
+    val appId: String,
+    val enableExactlyOnce: Boolean,
+    val enableIdempotence: Boolean,
+    val acks: String
+
 )

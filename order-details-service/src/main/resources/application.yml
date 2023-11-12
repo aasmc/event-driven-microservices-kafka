@@ -1,21 +1,11 @@
 server:
-  port: 8050
+  port: 8020
 
 spring:
   application:
-    name: email-service
+    name: order-details-service
   kafka:
     bootstrap-servers: ${kafkaprops.bootstrapServers}
-    producer:
-      key-serializer: org.apache.kafka.common.serialization.StringSerializer
-      value-serializer: io.confluent.kafka.serializers.KafkaAvroSerializer
-      bootstrap-servers: ${kafkaprops.bootstrapServers}
-      acks: ${kafkaprops.acks}
-      client-id: ${kafkaprops.clientId}
-      properties:
-        enable.idempotence: ${kafkaprops.enableIdempotence}
-        schema.registry.url: ${kafkaprops.schemaRegistryUrl}
-        auto.register.schemas: false
     streams:
       application-id: ${spring.application.name}
       bootstrap-servers: ${kafkaprops.bootstrapServers}
@@ -32,9 +22,9 @@ kafkaprops:
   processingGuarantee: at_least_once
   commitInterval: 1
   sessionTimeout: 30000
-  stateDir: "/tmp/kafka-streams-email"
+  stateDir: "/tmp/kafka-streams-order-details"
   appId: ${spring.application.name}
-  enableIdempotence: false
+  enableIdempotence: true
   acks: all
   clientId: ${spring.application.name}
   enableExactlyOnce: false
