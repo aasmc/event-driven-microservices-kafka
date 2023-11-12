@@ -1,5 +1,6 @@
 version: '3.0'
-
+volumes:
+  database:
 services:
   zookeeper:
     image: confluentinc/cp-zookeeper:7.5.2
@@ -101,3 +102,65 @@ services:
       KSQL_KSQL_LOGGING_PROCESSING_TOPIC_AUTO_CREATE: "true"
       KSQL_KSQL_SCHEMA_REGISTRY_URL: http://schema-registry:8081
 
+  connect:
+    image: confluentinc/cp-server-connect:7.5.2
+    container_name: connect
+    depends_on:
+      - sqlite
+    ports:
+      - "8083:8083"
+    environment:
+      CONNECT_BOOTSTRAP_SERVERS: kafka:29092
+      CONNECT_GROUP_ID: "examples-microservices-orders"
+      CONNECT_REST_ADVERTISED_HOST_NAME: connect
+
+      CONNECT_CONFIG_STORAGE_TOPIC: connect-demo-configs
+      CONNECT_OFFSET_STORAGE_TOPIC: connect-demo-offsets
+      CONNECT_STATUS_STORAGE_TOPIC: connect-demo-statuses
+
+      CONNECT_REPLICATION_FACTOR: 1
+      CONNECT_CONFIG_STORAGE_REPLICATION_FACTOR: 1
+      CONNECT_OFFSET_STORAGE_REPLICATION_FACTOR: 1
+      CONNECT_STATUS_STORAGE_REPLICATION_FACTOR: 1
+
+      CONNECT_KEY_CONVERTER: io.confluent.connect.avro.AvroConverter
+      CONNECT_KEY_CONVERTER_SCHEMA_REGISTRY_URL: http://schema-registry:8081
+      CONNECT_VALUE_CONVERTER: io.confluent.connect.avro.AvroConverter
+      CONNECT_VALUE_CONVERTER_SCHEMA_REGISTRY_URL: http://schema-registry:8081
+      # CLASSPATH required due to CC-2422
+      CLASSPATH: "/usr/share/java/monitoring-interceptors/monitoring-interceptors-7.5.2.jar"
+      CONNECT_PLUGIN_PATH: '/usr/share/java,/usr/share/confluent-hub-components/,/connectors/'
+    volumes:
+      - database:/opt/docker/db/data
+      - $PWD/stack-configs:/opt/docker/stack-configs
+    command:
+      - bash
+      - -c
+      - |
+        echo "Installing connector plugins"
+        confluent-hub install --no-prompt confluentinc/kafka-connect-jdbc:10.1.1
+        confluent-hub install --no-prompt confluentinc/kafka-connect-elasticsearch:10.0.2
+        echo "Launching Kafka Connect worker"
+        /etc/confluent/docker/run
+
+  sqlite:
+    image: sqlite:latest
+    container_name: sqlite
+    volumes:
+      - database:/db/data
+    build:
+      context: ./infra/db
+    stdin_open: true
+    tty: true
+
+  elasticsearch:
+    image: docker.elastic.co/elasticsearch/elasticsearch:5.6.16
+    container_name: elasticsearch
+    depends_on:
+      - connect
+    ports:
+      - "9200:9200"
+    environment:
+      xpack.security.enabled: "false"
+      XPACK_SECURITY_ENABLED: "false"
+      xpack.monitoring.enabled: "false"

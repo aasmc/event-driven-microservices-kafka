@@ -1,0 +1,9 @@
+include ':common'
+include ':email-service'
+include ':fraud-service'
+include ':inventory-service'
+include ':order-details-service'
+include ':orders-service'
+include ':validation-aggregation-service'
+
+

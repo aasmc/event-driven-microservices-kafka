@@ -1,4 +1,4 @@
-package ru.aasmc.orders.config
+package ru.aasmc.email.config
 
 import org.apache.kafka.clients.admin.NewTopic
 import org.apache.kafka.clients.consumer.ConsumerConfig
@@ -11,27 +11,50 @@ import org.springframework.kafka.annotation.EnableKafkaStreams
 import org.springframework.kafka.annotation.KafkaStreamsDefaultConfiguration
 import org.springframework.kafka.config.KafkaStreamsConfiguration
 import org.springframework.kafka.config.TopicBuilder
-import ru.aasmc.avro.eventdriven.Order
+import ru.aasmc.email.config.props.KafkaProps
+import ru.aasmc.eventdriven.common.props.TopicsProps
 import ru.aasmc.eventdriven.common.util.ServiceUtils
-import ru.aasmc.orders.config.props.KafkaProps
-import ru.aasmc.orders.config.props.OrdersProps
-import ru.aasmc.orders.dto.OrderDto
-import ru.aasmc.orders.utils.FilteredResponse
-import java.util.concurrent.ConcurrentHashMap
 
 @Configuration
 @EnableKafka
 @EnableKafkaStreams
 class KafkaConfig(
-    private val orderProps: OrdersProps,
     private val kafkaProps: KafkaProps,
-    private val serviceUtils: ServiceUtils
+    private val serviceUtils: ServiceUtils,
+    private val topicProps: TopicsProps
 ) {
 
     @Bean
-    fun outstandingRequests(): MutableMap<String, FilteredResponse<String, Order, OrderDto>> {
-        return ConcurrentHashMap()
-    }
+    fun platinumTopic(): NewTopic =
+        TopicBuilder
+            .name(topicProps.platinumTopic)
+            .partitions(topicProps.partitions)
+            .replicas(topicProps.replication)
+            .build()
+
+    @Bean
+    fun goldTopic(): NewTopic =
+        TopicBuilder
+            .name(topicProps.goldTopic)
+            .partitions(topicProps.partitions)
+            .replicas(topicProps.replication)
+            .build()
+
+    @Bean
+    fun silverTopic(): NewTopic =
+        TopicBuilder
+            .name(topicProps.silverTopic)
+            .partitions(topicProps.partitions)
+            .replicas(topicProps.replication)
+            .build()
+
+    @Bean
+    fun bronzeTopic(): NewTopic =
+        TopicBuilder
+            .name(topicProps.bronzeTopic)
+            .partitions(topicProps.partitions)
+            .replicas(topicProps.replication)
+            .build()
 
     @Bean(name = [KafkaStreamsDefaultConfiguration.DEFAULT_STREAMS_CONFIG_BEAN_NAME])
     fun kStreamsConfig(): KafkaStreamsConfiguration {
@@ -51,11 +74,4 @@ class KafkaConfig(
         return KafkaStreamsConfiguration(props)
     }
 
-    @Bean
-    fun ordersTopic(): NewTopic =
-        TopicBuilder
-            .name(orderProps.topic)
-            .partitions(orderProps.partitions)
-            .replicas(orderProps.replication)
-            .build()
 }

@@ -1,5 +1,3 @@
-import org.jetbrains.kotlin.gradle.tasks.KotlinCompile
-
 buildscript {
     repositories {
         gradlePluginPortal()
@@ -17,10 +15,12 @@ plugins {
     id 'io.spring.dependency-management' version '1.1.3'
     id 'org.jetbrains.kotlin.jvm' version '1.8.22'
     id 'org.jetbrains.kotlin.plugin.spring' version '1.8.22'
+    id 'com.github.imflog.kafka-schema-registry-gradle-plugin' version "1.6.0"
+    id 'com.github.davidmc24.gradle.plugin.avro' version "1.3.0"
 }
 
-group = 'ru.aasmc'
-version = '0.0.1-SNAPSHOT'
+group = 'ru.aasmc.eventdriven.common'
+version = '1.0.0-SNAPSHOT'
 
 java {
     sourceCompatibility = '17'
@@ -42,15 +42,13 @@ repositories {
     }
 }
 
-jar {
-    enabled = false
+ext {
+    springBootVersion = '3.1.5'
 }
 
 dependencies {
-    implementation project(':common')
-    implementation 'org.springframework.boot:spring-boot-starter-actuator'
-    implementation 'org.springframework.boot:spring-boot-starter-validation'
-    implementation 'org.springframework.boot:spring-boot-starter-web'
+    implementation platform("org.springframework.boot:spring-boot-dependencies:${springBootVersion}")
+
     implementation 'org.springframework.boot:spring-boot-starter-webflux'
     implementation 'com.fasterxml.jackson.module:jackson-module-kotlin'
     implementation 'org.apache.kafka:kafka-streams'
@@ -60,24 +58,8 @@ dependencies {
     implementation("io.confluent:kafka-streams-avro-serde:7.5.2")
     implementation("org.apache.avro:avro:1.11.0")
     annotationProcessor 'org.springframework.boot:spring-boot-configuration-processor'
-    testImplementation 'org.springframework.boot:spring-boot-starter-test'
-    testImplementation 'org.springframework.boot:spring-boot-testcontainers'
-    testImplementation 'org.testcontainers:junit-jupiter'
-    testImplementation 'org.testcontainers:kafka'
 }
 
-tasks.withType(KotlinCompile) {
-    kotlinOptions {
-        freeCompilerArgs += '-Xjsr305=strict'
-        jvmTarget = '17'
-    }
-}
-
-
-tasks.named('bootBuildImage') {
-    builder = 'paketobuildpacks/builder-jammy-base:latest'
-}
-
-tasks.named('test') {
+test {
     useJUnitPlatform()
 }

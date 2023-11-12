@@ -15,6 +15,7 @@ import org.springframework.web.reactive.function.client.WebClient
 import org.springframework.web.reactive.function.client.bodyToMono
 import ru.aasmc.avro.eventdriven.Order
 import ru.aasmc.avro.eventdriven.OrderState
+import ru.aasmc.eventdriven.common.util.ServiceUtils
 import ru.aasmc.orders.config.props.OrdersProps
 import ru.aasmc.orders.dto.OrderDto
 import ru.aasmc.orders.error.NotFoundException
@@ -22,7 +23,6 @@ import ru.aasmc.orders.mapper.OrderMapper
 import ru.aasmc.orders.utils.FilteredResponse
 import ru.aasmc.orders.utils.HostStoreInfo
 import ru.aasmc.orders.utils.Paths
-import ru.aasmc.orders.utils.ServiceUtils
 import java.util.concurrent.CompletableFuture
 
 

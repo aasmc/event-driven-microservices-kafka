@@ -1,9 +1,9 @@
 server:
-  port: 8000
+  port: 8050
 
 spring:
   application:
-    name: order-service
+    name: email-service
   kafka:
     bootstrap-servers: ${kafkaprops.bootstrapServers}
     producer:
@@ -32,17 +32,11 @@ kafkaprops:
   processingGuarantee: at_least_once
   commitInterval: 1
   sessionTimeout: 30000
-  stateDir: "/tmp/kafka-streams-orders"
+  stateDir: "/tmp/kafka-streams-email"
   appId: ${spring.application.name}
   enableIdempotence: false
   acks: all
   clientId: ${spring.application.name}
-
-ordersprops:
-  topic: orders.v1
-  partitions: 3
-  replication: 1
-  storeName: orders-store
 
 application:
   host: localhost

@@ -1,7 +1,7 @@
-package ru.aasmc.orders.utils
+package ru.aasmc.eventdriven.common.util
 
 import org.springframework.stereotype.Component
-import ru.aasmc.orders.config.props.ApplicationProps
+import ru.aasmc.eventdriven.common.props.ApplicationProps
 
 @Component
 class ServiceUtils(
