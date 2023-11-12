@@ -163,8 +163,9 @@ class OrdersService(
                     asyncResponse = asyncResponse,
                     predicate = predicate
                 )
+            } else {
+                asyncResponse.setResult(mapper.toDto(order))
             }
-            asyncResponse.setResult(mapper.toDto(order))
         } catch (e: InvalidStateStoreException) {
             log.error("Exception while querying local state store. {}", e.message)
             outstandingRequests[id] = FilteredResponse(asyncResponse, predicate)

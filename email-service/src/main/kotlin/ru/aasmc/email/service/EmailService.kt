@@ -25,7 +25,6 @@ class EmailService(
             schemas.ORDERS.name,
             Consumed.with(schemas.ORDERS.keySerde, schemas.ORDERS.valueSerde)
         )
-
         //Create the streams/tables for the join
         val payments: KStream<String, Payment> = builder.stream(
             schemas.PAYMENTS.name,
@@ -43,7 +42,8 @@ class EmailService(
             .with(schemas.ORDERS.keySerde, schemas.ORDERS.valueSerde, schemas.PAYMENTS.valueSerde)
         //Join the two streams and the table then send an email for each
         orders.join(
-            payments, ::EmailTuple,
+            payments,
+            ::EmailTuple,
             JoinWindows.ofTimeDifferenceWithNoGrace(Duration.ofMinutes(1)),
             serdes
         )

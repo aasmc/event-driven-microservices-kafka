@@ -4,6 +4,6 @@ include ':fraud-service'
 include ':inventory-service'
 include ':order-details-service'
 include ':orders-service'
-include ':validation-aggregation-service'
+include ':validation-aggregator-service'
 
 
