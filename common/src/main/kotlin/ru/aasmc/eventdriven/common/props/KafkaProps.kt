@@ -1,4 +1,4 @@
-package ru.aasmc.email.config.props
+package ru.aasmc.eventdriven.common.props
 
 import org.springframework.boot.context.properties.ConfigurationProperties
 import org.springframework.boot.context.properties.bind.ConstructorBinding
