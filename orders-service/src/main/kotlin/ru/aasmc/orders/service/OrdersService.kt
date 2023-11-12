@@ -23,6 +23,7 @@ import ru.aasmc.orders.utils.FilteredResponse
 import ru.aasmc.orders.utils.HostStoreInfo
 import ru.aasmc.orders.utils.Paths
 import ru.aasmc.orders.utils.ServiceUtils
+import java.util.concurrent.CompletableFuture
 
 
 private val log = LoggerFactory.getLogger(OrdersService::class.java)
@@ -93,14 +94,16 @@ class OrdersService(
 
     fun getOrderDto(id: String, asyncResponse: DeferredResult<OrderDto>, timeout: Long) {
         initOrderStore()
-        val hostForKey = getKeyLocationOrBlock(id, asyncResponse)
-            ?: return //request timed out so return
+        CompletableFuture.runAsync {
+            val hostForKey = getKeyLocationOrBlock(id, asyncResponse)
+                ?: return@runAsync //request timed out so return
 
-        if (thisHost(hostForKey)) {
-            fetchLocal(id, asyncResponse) { _, _ -> true }
-        } else {
-            val path = Paths(hostForKey.host, hostForKey.port).urlGet(id)
-            fetchFromOtherHost(path, asyncResponse, timeout)
+            if (thisHost(hostForKey)) {
+                fetchLocal(id, asyncResponse) { _, _ -> true }
+            } else {
+                val path = Paths(hostForKey.host, hostForKey.port).urlGet(id)
+                fetchFromOtherHost(path, asyncResponse, timeout)
+            }
         }
     }
 
@@ -124,16 +127,19 @@ class OrdersService(
         timeout: Long
     ) {
         initOrderStore()
-        val hostForKey = getKeyLocationOrBlock(id, asyncResponse)
-            ?: return
-        if (thisHost(hostForKey)) {
-            fetchLocal(id, asyncResponse) { _, order ->
-                order.state == OrderState.VALIDATED || order.state == OrderState.FAILED
+        CompletableFuture.runAsync {
+            val hostForKey = getKeyLocationOrBlock(id, asyncResponse)
+                ?: return@runAsync
+            if (thisHost(hostForKey)) {
+                fetchLocal(id, asyncResponse) { _, order ->
+                    order.state == OrderState.VALIDATED || order.state == OrderState.FAILED
+                }
+            } else {
+                val path = Paths(hostForKey.host, hostForKey.port).urlGetValidated(id)
+                fetchFromOtherHost(path, asyncResponse, timeout)
             }
-        } else {
-            val path = Paths(hostForKey.host, hostForKey.port).urlGetValidated(id)
-            fetchFromOtherHost(path, asyncResponse, timeout)
         }
+
     }
 
     /**
