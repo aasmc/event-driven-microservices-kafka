@@ -1,4 +1,4 @@
-package ru.aasmc.orders.config
+package ru.aasmc.email.config
 
 import io.confluent.kafka.serializers.AbstractKafkaSchemaSerDeConfig
 import org.apache.kafka.clients.consumer.ConsumerConfig
@@ -9,13 +9,9 @@ import org.springframework.context.annotation.Configuration
 import org.springframework.kafka.annotation.EnableKafkaStreams
 import org.springframework.kafka.annotation.KafkaStreamsDefaultConfiguration
 import org.springframework.kafka.config.KafkaStreamsConfiguration
-import ru.aasmc.avro.eventdriven.Order
 import ru.aasmc.eventdriven.common.props.KafkaProps
 import ru.aasmc.eventdriven.common.props.TopicsProps
 import ru.aasmc.eventdriven.common.util.ServiceUtils
-import ru.aasmc.orders.dto.OrderDto
-import ru.aasmc.orders.utils.FilteredResponse
-import java.util.concurrent.ConcurrentHashMap
 
 @EnableKafkaStreams
 @Configuration
@@ -24,11 +20,6 @@ class KafkaConfig(
     private val serviceUtils: ServiceUtils,
     private val topicProps: TopicsProps
 ) {
-
-    @Bean
-    fun outstandingRequests(): MutableMap<String, FilteredResponse<String, Order, OrderDto>> {
-        return ConcurrentHashMap()
-    }
 
     @Bean(name = [KafkaStreamsDefaultConfiguration.DEFAULT_STREAMS_CONFIG_BEAN_NAME])
     fun kStreamsConfig(): KafkaStreamsConfiguration {
@@ -48,5 +39,4 @@ class KafkaConfig(
         )
         return KafkaStreamsConfiguration(props)
     }
-
 }

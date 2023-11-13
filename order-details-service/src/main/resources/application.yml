@@ -6,13 +6,13 @@ spring:
     name: order-details-service
   kafka:
     bootstrap-servers: ${kafkaprops.bootstrapServers}
-    streams:
-      application-id: ${spring.application.name}
+    consumer:
       bootstrap-servers: ${kafkaprops.bootstrapServers}
-      state-dir: ${kafkaprops.stateDir}
+      key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+      value-deserializer: io.confluent.kafka.serializers.KafkaAvroDeserializer
       properties:
-        schema.registry.url: ${kafkaprops.schemaRegistryUrl}
-
+        schema.registry.url: http://localhost:8081
+        specific.avro.reader: true
 
 
 kafkaprops:

@@ -17,5 +17,5 @@ class TopicsProps @ConstructorBinding constructor(
     val bronzeTopic: String,
     val schemaRegistryUrl: String,
     val partitions: Int,
-    val replication: Int
+    val replication: Int,
 )

@@ -51,10 +51,10 @@ topicprops:
   orderValidationTopic: order-validations.v1
   paymentsTopic: payments.v1
   customersTopic: customers.v1
-  platinumTopic: platinum.v1
-  goldTopic: gold.v1
-  silverTopic: silver.v1
-  bronzeTopic: bronze.v1
+  platinumTopic: platinum
+  goldTopic: gold
+  silverTopic: silver
+  bronzeTopic: bronze
   schemaRegistryUrl: http://localhost:8081
   partitions: 3
   replication: 1
