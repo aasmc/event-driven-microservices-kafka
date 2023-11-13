@@ -1,0 +1,51 @@
+server:
+  port: 8060
+spring:
+  application:
+    name: fraud-service
+  kafka:
+    bootstrap-servers: ${kafkaprops.bootstrapServers}
+    streams:
+      application-id: ${spring.application.name}
+      bootstrap-servers: ${kafkaprops.bootstrapServers}
+      state-dir: ${kafkaprops.stateDir}
+      properties:
+        schema.registry.url: ${kafkaprops.schemaRegistryUrl}
+
+
+
+kafkaprops:
+  bootstrapServers: localhost:9092
+  schemaRegistryUrl: http://localhost:8081
+  autoOffsetReset: earliest
+  processingGuarantee: at_least_once
+  commitInterval: 1
+  sessionTimeout: 30000
+  stateDir: "/tmp/kafka-streams-fraud"
+  appId: ${spring.application.name}
+  enableIdempotence: false
+  acks: all
+  clientId: ${spring.application.name}
+  enableExactlyOnce: false
+
+fraudprops:
+  storeName: fraud-store
+
+application:
+  host: localhost
+  port: ${server.port}
+
+topicprops:
+  ordersTopic: orders.v1
+  ordersEnrichedTopic: orders-enriched.v1
+  inventoryTopic: warehouse-inventory.v1
+  orderValidationTopic: order-validations.v1
+  paymentsTopic: payments.v1
+  customersTopic: customers.v1
+  platinumTopic: platinum
+  goldTopic: gold
+  silverTopic: silver
+  bronzeTopic: bronze
+  schemaRegistryUrl: http://localhost:8081
+  partitions: 3
+  replication: 1
