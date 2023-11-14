@@ -1,19 +1,17 @@
 server:
-  port: 8020
+  port: 8080
 
 spring:
   application:
-    name: order-details-service
+    name: inventory-service
   kafka:
     bootstrap-servers: ${kafkaprops.bootstrapServers}
-    consumer:
+    streams:
+      application-id: ${spring.application.name}
       bootstrap-servers: ${kafkaprops.bootstrapServers}
-      key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
-      value-deserializer: io.confluent.kafka.serializers.KafkaAvroDeserializer
+      state-dir: ${kafkaprops.stateDir}
       properties:
-        schema.registry.url: http://localhost:8081
-        specific.avro.reader: true
-
+        schema.registry.url: ${kafkaprops.schemaRegistryUrl}
 
 kafkaprops:
   bootstrapServers: localhost:9092
@@ -22,17 +20,19 @@ kafkaprops:
   processingGuarantee: at_least_once
   commitInterval: 1
   sessionTimeout: 30000
-  stateDir: "/tmp/kafka-streams-order-details"
+  stateDir: "/tmp/kafka-streams-inventory-service"
   appId: ${spring.application.name}
-  enableIdempotence: true
+  enableIdempotence: false
   acks: all
   clientId: ${spring.application.name}
-  enableExactlyOnce: true
-
+  enableExactlyOnce: false
 
 application:
   host: localhost
   port: ${server.port}
+
+inventoryprops:
+  reserved-stock-store-name: store-of-reserved-stock
 
 topicprops:
   ordersTopic: orders.v1
@@ -41,10 +41,10 @@ topicprops:
   orderValidationTopic: order-validations.v1
   paymentsTopic: payments.v1
   customersTopic: customers.v1
-  platinumTopic: platinum.v1
-  goldTopic: gold.v1
-  silverTopic: silver.v1
-  bronzeTopic: bronze.v1
+  platinumTopic: platinum
+  goldTopic: gold
+  silverTopic: silver
+  bronzeTopic: bronze
   schemaRegistryUrl: http://localhost:8081
   partitions: 3
   replication: 1
