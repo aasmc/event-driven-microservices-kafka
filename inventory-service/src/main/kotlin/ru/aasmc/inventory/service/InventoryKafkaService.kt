@@ -1,6 +1,18 @@
 package ru.aasmc.inventory.service
 
+import org.apache.kafka.common.serialization.Serdes
+import org.apache.kafka.streams.KeyValue
+import org.apache.kafka.streams.StreamsBuilder
+import org.apache.kafka.streams.kstream.*
+import org.apache.kafka.streams.state.KeyValueStore
+import org.apache.kafka.streams.state.StoreBuilder
+import org.apache.kafka.streams.state.Stores
+import org.slf4j.LoggerFactory
+import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.stereotype.Service
+import ru.aasmc.avro.eventdriven.Order
+import ru.aasmc.avro.eventdriven.OrderState
+import ru.aasmc.avro.eventdriven.Product
 import ru.aasmc.eventdriven.common.schemas.Schemas
 import ru.aasmc.inventory.config.props.InventoryProps
 
@@ -14,9 +26,74 @@ import ru.aasmc.inventory.config.props.InventoryProps
  * Currently there is nothing implemented that decrements the reserved items. This
  * would happen, inside this service, in response to an order being shipped.
  */
+
+private val log = LoggerFactory.getLogger(InventoryKafkaService::class.java)
+
 @Service
 class InventoryKafkaService(
     private val schemas: Schemas,
     private val inventoryProps: InventoryProps
 ) {
+
+    @Autowired
+    fun processStreams(builder: StreamsBuilder) {
+        // Latch onto instances of the orders and inventory topics
+        val orders: KStream<String, Order> = builder
+            .stream(
+                schemas.ORDERS.name,
+                Consumed.with(schemas.ORDERS.keySerde, schemas.ORDERS.valueSerde)
+            )
+
+        val warehouseInventory: KTable<Product, Int> = builder
+            .table(
+                schemas.WAREHOUSE_INVENTORY.name,
+                Consumed.with(
+                    schemas.WAREHOUSE_INVENTORY.keySerde,
+                    schemas.WAREHOUSE_INVENTORY.valueSerde
+                )
+            )
+        // Create a store to reserve inventory whilst the order is processed.
+        // This will be prepopulated from Kafka before the service starts processing
+        val reservedStock: StoreBuilder<KeyValueStore<Product, Long>> = Stores
+            .keyValueStoreBuilder(
+                Stores.persistentKeyValueStore(inventoryProps.reservedStockStoreName),
+                schemas.WAREHOUSE_INVENTORY.keySerde, Serdes.Long()
+            )
+            .withLoggingEnabled(hashMapOf())
+        builder.addStateStore(reservedStock)
+
+        //First change orders stream to be keyed by Product (so we can join with warehouse inventory)
+        orders.selectKey { id, order -> order.product }
+            // Limit to newly created orders
+            .filter { id, order -> OrderState.CREATED == order.state }
+            //Join Orders to Inventory so we can compare each order to its corresponding stock value
+            .join(
+                warehouseInventory,
+                ::KeyValue,
+                Joined.with(
+                    schemas.WAREHOUSE_INVENTORY.keySerde,
+                    schemas.ORDERS.valueSerde,
+                    Serdes.Integer()
+                )
+            )
+            //Validate the order based on how much stock we have both in the warehouse
+            // and locally 'reserved' stock
+            .transform(
+                TransformerSupplier {
+                    InventoryValidator(inventoryProps)
+                },
+                inventoryProps.reservedStockStoreName
+            )
+            //Push the result into the Order Validations topic
+            .to(
+                schemas.ORDER_VALIDATIONS.name,
+                Produced.with(
+                    schemas.ORDER_VALIDATIONS.keySerde,
+                    schemas.ORDER_VALIDATIONS.valueSerde
+                )
+            )
+
+
+    }
+
 }
