@@ -13,6 +13,11 @@ import ru.aasmc.email.dto.EmailTuple
 import ru.aasmc.eventdriven.common.schemas.Schemas
 import java.time.Duration
 
+/**
+ * A very simple service which sends emails. Order and Payment streams are joined
+ * using a window. The result is then joined to a lookup table of Customers.
+ * Finally an email is sent for each resulting tuple.
+ */
 @Service
 class EmailService(
     private val emailer: Emailer,

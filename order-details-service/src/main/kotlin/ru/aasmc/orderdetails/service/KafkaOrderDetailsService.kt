@@ -22,6 +22,18 @@ import ru.aasmc.eventdriven.common.schemas.Schemas
 
 private val log = LoggerFactory.getLogger(KafkaOrderDetailsService::class.java)
 
+/**
+ * Validates the details of each order.
+ * - Is the quantity positive?
+ * - Is there a customerId
+ * - etc...
+ * <p>
+ * This service could be built with Kafka Streams but we've used a Producer/Consumer pair
+ * including the integration with Kafka's Exactly Once feature (Transactions) to demonstrate
+ * this other style of building event driven services. Care needs to be taken with this approach
+ * as in the current release multi-node support is not provided for the transactional consumer
+ * (but it is supported inside Kafka Streams)
+ */
 @Service
 class KafkaOrderDetailsService(
     private val producer: KafkaTemplate<String, OrderValidation>,
