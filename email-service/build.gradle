@@ -26,6 +26,10 @@ java {
     sourceCompatibility = '17'
 }
 
+jar {
+    enabled = false
+}
+
 configurations {
     compileOnly {
         extendsFrom annotationProcessor
@@ -72,6 +76,8 @@ tasks.withType(KotlinCompile) {
 
 
 tasks.named('bootBuildImage') {
+    imageName = "${project.name}"
+    environment = ["BP_JVM_VERSION": "17.*"]
     builder = 'paketobuildpacks/builder-jammy-base:latest'
 }
 

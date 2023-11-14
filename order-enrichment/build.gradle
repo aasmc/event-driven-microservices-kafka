@@ -26,12 +26,6 @@ java {
     sourceCompatibility = '17'
 }
 
-configurations {
-    compileOnly {
-        extendsFrom annotationProcessor
-    }
-}
-
 repositories {
     mavenCentral()
     maven {
@@ -40,27 +34,38 @@ repositories {
     maven {
         url = "https://jitpack.io"
     }
+    maven {
+        url = "https://ksqldb-maven.s3.amazonaws.com/maven/"
+    }
+}
+
+ext {
+    set('ksqldbVersion', "0.29.0")
 }
 
 dependencies {
     implementation project(':common')
     implementation 'org.springframework.boot:spring-boot-starter-actuator'
-    implementation 'org.springframework.boot:spring-boot-starter-validation'
     implementation 'org.springframework.boot:spring-boot-starter-web'
-    implementation 'org.springframework.boot:spring-boot-starter-webflux'
     implementation 'com.fasterxml.jackson.module:jackson-module-kotlin'
-    implementation 'org.apache.kafka:kafka-streams'
     implementation 'org.jetbrains.kotlin:kotlin-reflect'
-    implementation 'org.springframework.kafka:spring-kafka'
     implementation("io.confluent:kafka-avro-serializer:7.5.2")
-    implementation("io.confluent:kafka-streams-avro-serde:7.5.2")
     implementation("org.apache.avro:avro:1.11.0")
+    implementation ("io.confluent.ksql:ksqldb-api-client:${ksqldbVersion}") {
+        exclude group: 'org.slf4j'
+    }
+    implementation ("io.confluent.ksql:ksqldb-udf:${ksqldbVersion}") {
+        exclude group: 'org.slf4j'
+    }
+    implementation ("io.confluent.ksql:ksqldb-common:${ksqldbVersion}") {
+        exclude group: 'org.slf4j'
+    }
     annotationProcessor 'org.springframework.boot:spring-boot-configuration-processor'
     testImplementation 'org.springframework.boot:spring-boot-starter-test'
     testImplementation 'org.springframework.boot:spring-boot-testcontainers'
     testImplementation 'org.testcontainers:junit-jupiter'
-    testImplementation 'org.testcontainers:kafka'
 }
+
 
 tasks.withType(KotlinCompile) {
     kotlinOptions {
@@ -68,6 +73,7 @@ tasks.withType(KotlinCompile) {
         jvmTarget = '17'
     }
 }
+
 
 tasks.named('bootBuildImage') {
     imageName = "${project.name}"

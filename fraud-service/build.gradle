@@ -70,6 +70,8 @@ tasks.withType(KotlinCompile) {
 
 
 tasks.named('bootBuildImage') {
+    imageName = "${project.name}"
+    environment = ["BP_JVM_VERSION": "17.*"]
     builder = 'paketobuildpacks/builder-jammy-base:latest'
 }
 

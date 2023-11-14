@@ -2,6 +2,104 @@ version: '3.0'
 volumes:
   database:
 services:
+  email-service:
+    build: email-service
+    image: event-driven/email-service
+    environment:
+      - SPRING_ACTIVE_PROFILES=docker
+    deploy:
+      resources:
+        limits:
+          memory: 512m
+        reservations:
+          memory: 512m
+    depends_on:
+      - kafka
+
+  fraud-service:
+    build: fraud-service
+    image: event-driven/fraud-service
+    environment:
+      - SPRING_ACTIVE_PROFILES=docker
+    deploy:
+      resources:
+        limits:
+          memory: 512m
+        reservations:
+          memory: 512m
+    depends_on:
+      - kafka
+
+  inventory-service:
+    build: inventory-service
+    image: event-driven/inventory-service
+    environment:
+      - SPRING_ACTIVE_PROFILES=docker
+    deploy:
+      resources:
+        limits:
+          memory: 512m
+        reservations:
+          memory: 512m
+    depends_on:
+      - kafka
+
+  order-detauls-service:
+    build: order-details-service
+    image: event-driven/order-details-service
+    environment:
+      - SPRING_ACTIVE_PROFILES=docker
+    deploy:
+      resources:
+        limits:
+          memory: 512m
+        reservations:
+          memory: 512m
+    depends_on:
+      - kafka
+
+  order-enrichment-service:
+    build: order-enrichment
+    image: event-driven/order-enrichment
+    environment:
+      - SPRING_ACTIVE_PROFILES=docker
+    deploy:
+      resources:
+        limits:
+          memory: 512m
+        reservations:
+          memory: 512m
+    depends_on:
+      - kafka
+
+  orders-service:
+    build: orders-service
+    image: event-driven/orders-service
+    environment:
+      - SPRING_ACTIVE_PROFILES=docker
+    deploy:
+      resources:
+        limits:
+          memory: 512m
+        reservations:
+          memory: 512m
+    depends_on:
+      - kafka
+
+  validation-aggregator-service:
+    build: validation-aggregator-service
+    image: event-driven/validation-aggregator-service
+    environment:
+      - SPRING_ACTIVE_PROFILES=docker
+    deploy:
+      resources:
+        limits:
+          memory: 512m
+        reservations:
+          memory: 512m
+    depends_on:
+      - kafka
+
   zookeeper:
     image: confluentinc/cp-zookeeper:7.5.2
     hostname: zookeeper
@@ -65,31 +163,10 @@ services:
       SCHEMA_REGISTRY_KAFKASTORE_BOOTSTRAP_SERVERS: 'kafka:29092'
       SCHEMA_REGISTRY_LISTENERS: http://0.0.0.0:8081
 
-  kadeck-db:
-    container_name: "kadeck-db"
-    ports:
-      - "5435:5432"
-    image: postgres:12.6
-    environment:
-      POSTGRES_DB: "kadeckweb"
-      POSTGRES_USER: "postgres"
-      POSTGRES_PASSWORD: "postgres"
-
-  kadeck:
-    container_name: "kadeck"
-    ports:
-      - "80:80"
-    image: xeotek/kadeck-allinone:latest
-    environment:
-      xeotek_kadeck_home: "kadeckweb"
-      xeotek_kadeck_db_username: "postgres"
-      xeotek_kadeck_db_password: "postgres"
-      xeotek_kadeck_db_url: "jdbc:postgresql://kadeck-db:5432/kadeckweb"
-
-  primary-ksqldb-server:
+  ksqldb:
     image: confluentinc/ksqldb-server:0.29.0
-    hostname: primary-ksqldb-server
-    container_name: primary-ksqldb-server
+    hostname: ksqldb
+    container_name: ksqldb
     depends_on:
       - kafka
       - schema-registry
@@ -144,12 +221,11 @@ services:
         /etc/confluent/docker/run
 
   sqlite:
-    image: sqlite:latest
+    build: ./infra/db
+    image: sqlite
     container_name: sqlite
     volumes:
       - database:/db/data
-    build:
-      context: ./infra/db
     stdin_open: true
     tty: true
 
@@ -164,3 +240,30 @@ services:
       xpack.security.enabled: "false"
       XPACK_SECURITY_ENABLED: "false"
       xpack.monitoring.enabled: "false"
+
+  kibana:
+    image: docker.elastic.co/kibana/kibana:5.5.2
+    container_name: kibana
+    depends_on:
+      - elasticsearch
+    ports:
+      - "5601:5601"
+    environment:
+      xpack.security.enabled: "false"
+      xpack.monitoring.enabled: "false"
+      discovery.type: "single-node"
+      elasticsearch.url: http://elasticsearch:9200
+      server.host: "0.0.0.0"
+      SERVER_HOST: "0.0.0.0"
+      server.name: "kibana"
+      SERVER_NAME: "kibana"
+      XPACK_GRAPH_ENABLED: "false"
+      XPACK_MONITORING_ENABLED: "false"
+      XPACK_REPORTING_ENABLED: "false"
+      XPACK_SECURITY_ENABLED: "false"
+    command:
+      - bash
+      - -c
+      - |
+        /usr/share/kibana/bin/kibana-plugin remove x-pack
+        /usr/local/bin/kibana-docker
