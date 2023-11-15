@@ -40,7 +40,7 @@ topicprops:
   inventoryTopic: warehouse-inventory.v1
   orderValidationTopic: order-validations.v1
   paymentsTopic: payments.v1
-  customersTopic: customers.v1
+  customersTopic: customers
   platinumTopic: platinum
   goldTopic: gold
   silverTopic: silver

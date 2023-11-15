@@ -67,8 +67,9 @@ class KafkaConfig(
             ProducerConfig.CLIENT_ID_CONFIG to kafkaProps.appId,
             ProducerConfig.VALUE_SERIALIZER_CLASS_CONFIG to schemas.ORDER_VALIDATIONS.valueSerde.serializer().javaClass.name,
             ProducerConfig.KEY_SERIALIZER_CLASS_CONFIG to schemas.ORDER_VALIDATIONS.keySerde.serializer().javaClass.name,
-            AbstractKafkaSchemaSerDeConfig.SCHEMA_REGISTRY_URL_CONFIG to kafkaProps.schemaRegistryUrl
-
+            AbstractKafkaSchemaSerDeConfig.SCHEMA_REGISTRY_URL_CONFIG to kafkaProps.schemaRegistryUrl,
+            AbstractKafkaSchemaSerDeConfig.AUTO_REGISTER_SCHEMAS to false,
+            AbstractKafkaSchemaSerDeConfig.USE_LATEST_VERSION to true,
         )
         if (kafkaProps.enableExactlyOnce) {
             // attempt to provide a unique transactional ID which is a recommended practice
