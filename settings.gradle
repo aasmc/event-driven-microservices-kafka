@@ -6,5 +6,6 @@ include ':order-details-service'
 include ':orders-service'
 include ':validation-aggregator-service'
 include ':order-enrichment'
+include ':populator'
 
 

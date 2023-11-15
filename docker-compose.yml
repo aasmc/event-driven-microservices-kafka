@@ -231,8 +231,6 @@ services:
       - database:/db/data
     stdin_open: true
     tty: true
-#    command:
-#      - sqlite3 .open microservices.db
 
 
   elasticsearch:
