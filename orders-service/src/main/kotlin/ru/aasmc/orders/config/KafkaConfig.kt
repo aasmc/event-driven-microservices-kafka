@@ -44,6 +44,7 @@ class KafkaConfig(
             StreamsConfig.PROCESSING_GUARANTEE_CONFIG to kafkaProps.processingGuarantee,
             StreamsConfig.COMMIT_INTERVAL_MS_CONFIG to kafkaProps.commitInterval,
             AbstractKafkaSchemaSerDeConfig.SCHEMA_REGISTRY_URL_CONFIG to topicProps.schemaRegistryUrl,
+            AbstractKafkaSchemaSerDeConfig.AUTO_REGISTER_SCHEMAS to false,
             StreamsConfig.consumerPrefix(ConsumerConfig.SESSION_TIMEOUT_MS_CONFIG) to kafkaProps.sessionTimeout
         )
         return KafkaStreamsConfiguration(props)
