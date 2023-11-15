@@ -19,7 +19,10 @@ sleep $WARMUP_TIME
 printf "\n====== Registering Avro schema with Schema Registry\n"
 ./gradlew registerSchemaTask
 
+printf "\n====== Building Microservices\n"
 ./gradlew clean build
+printf "\n====== Giving microservices $WARMUP_TIME seconds to build\n"
+sleep $WARMUP_TIME
 
 printf "\n====== Starting microservices in Docker\n"
 docker compose up -d email-service fraud-service order-details-service order-enrichment-service orders-service validation-aggregator-service
