@@ -8,7 +8,7 @@ spring:
 ksqldbprops:
   host: localhost
   port: 8088
-  ordersStream: orders_stream
+  ordersStream: orders_ksqldb_stream
   customersTable: customers_table
   ordersEnrichedStream: orders_enriched_stream
   fraudOrderTable: fraud_order
