@@ -35,7 +35,9 @@ class OrdersServiceTopology(
 
     private fun maybeCompleteLongPollGet(id: String, order: Order) {
         val callback = outstandingRequests[id]
-        if (callback != null && callback.predicate(id, order) && !callback.asyncResponse.isSetOrExpired) {
+        if (callback?.asyncResponse?.isSetOrExpired == true) {
+            outstandingRequests.remove(id)
+        } else if (callback != null && callback.predicate(id, order)) {
             callback.asyncResponse.setResult(mapper.toDto(order))
             outstandingRequests.remove(id)
         }
