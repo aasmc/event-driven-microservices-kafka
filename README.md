@@ -18,7 +18,7 @@
 9. Confluent Schema Registry
 10. Kafka Connect
 11. ElasticSearch
-12. SqlLite
+12. SQLite
 
 ### Верхнеуровневое описание архитектуры
 
@@ -92,7 +92,7 @@ PASS или FAIL записывают в топик Kafka order-validations.v1. 
    - Connect (Kafka Connect)
    - ksqlDB
    - Elasticsearch
-   - SqlLite
+   - SQLite
    - Kibana
 
 2. Регистрирует Avro схему сущностей, которые будут обрабатываться в Kafka. 
@@ -102,7 +102,7 @@ PASS или FAIL записывают в топик Kafka order-validations.v1. 
 3. Проводит чистую сборку микросервисов (пока без тестов, так как их еще не написал).
 4. Создает индекс orders.v1 в ElasticSearch
 5. Конфигурирует Kafka Connect для:
-    - получения данных из SqlLite (таблица customers) и записи лога изменений в Kafka (паттерн Change Data Capture)
+    - получения данных из SQLite (таблица customers) и записи лога изменений в Kafka (паттерн Change Data Capture)
     - записи данных из топика Kafka orders.v1 в индекс orders.v1 ElasticSearch
 6. Настраивает Kibana для просмотра записей из ElasticSearch.
 
