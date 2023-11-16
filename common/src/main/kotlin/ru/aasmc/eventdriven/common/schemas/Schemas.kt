@@ -89,10 +89,7 @@ class Schemas(
 
     private fun configureSerdes() {
         val config = hashMapOf<String, Any>(
-            AbstractKafkaSchemaSerDeConfig.SCHEMA_REGISTRY_URL_CONFIG to topicsProps.schemaRegistryUrl,
-//            AbstractKafkaSchemaSerDeConfig.AUTO_REGISTER_SCHEMAS to false,
-//            AbstractKafkaSchemaSerDeConfig.USE_LATEST_VERSION to true,
-//            AbstractKafkaSchemaSerDeConfig.ID_COMPATIBILITY_STRICT to false
+            AbstractKafkaSchemaSerDeConfig.SCHEMA_REGISTRY_URL_CONFIG to topicsProps.schemaRegistryUrl
         )
         for (topic in ALL.values) {
             configureSerde(topic.keySerde, config, true)

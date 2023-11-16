@@ -20,7 +20,7 @@ private const val FRAUD_LIMIT = 2000
 /**
  * This service searches for potentially fraudulent transactions by calculating the total value of
  * orders for a customer within a time period, then checks to see if this is over a configured
- * limit. <p> i.e. if(SUM(order.value, 5Mins) > $5000) GroupBy customer -> Fail(orderId) else
+ * limit. <p> i.e. if(SUM(order.value, 5Mins) > $2000) GroupBy customer -> Fail(orderId) else
  * Pass(orderId)
  */
 @Service

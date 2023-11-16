@@ -62,11 +62,136 @@ PASS или FAIL записывают в топик Kafka order-validations.v1. 
 с помощью Kafka Connect `io.confluent.connect.elasticsearch.ElasticsearchSinkConnector`.
 Конфигурация коннектора: [connector_elasticsearch_template.config](infra%2Fconnectors%2Fconnector_elasticsearch_template.config)
 
+![elastic-search-kafka.png](art%2Felastic-search-kafka.png)
+
 
 #### Диаграмма микросервисов и топиков Kafka:
 ![microservices-diagram.png](art%2Fmicroservices-diagram.png)
 
-Все микросервисы написаны на Kotlin с использованием Kafka Streams и Spring for Apache Kafka. 
+Все микросервисы написаны на Kotlin с использованием Kafka Streams и Spring for Apache Kafka.
+
+## Детали реализации
+
+### Common
+Данный модуль собран как библиотека, которую используют микросервисы. Содержит сгенерированный AVRO классы
+а также утиллитные классы, облегчающие работу с топиками, сериализаторами и десериализаторами. 
+#### Сущности
+Генерация сущностей, с которыми работает Kafka осуществляется [на основе схем Avro]([avro](common%2Fsrc%2Fmain%2Favro)) с помощью
+Gradle plugin `id 'com.github.davidmc24.gradle.plugin.avro' version "1.9.1"`, на этапе сборки
+библиотеки common. Ниже приведено описание сущностей без дополнительного сгенерированного кода.
+```kotlin
+class Customer(
+    val id: Long,
+    val firstName: String,
+    val lastName: String,
+    val email: String,
+    val address: String,
+    val level: String = "bronze" // possible values: platinum, gold, silver, bronze
+)
+
+enum class OrderState {
+    CREATED, VALIDATED, FAILED, SHIPPED
+}
+
+enum class Product {
+    JUMPERS, UNDERPANTS, STOCKINGS
+}
+
+class Order(
+    val id: String,
+    val customerId: Long,
+    val state: OrderState,
+    val product: Product,
+    val quantity: Int,
+    val price: Double
+)
+
+class OrderValue(
+    val order: Order,
+    val value: Double
+)
+
+class OrderEnriched(
+    val id: String,
+    val customerId: Long,
+    val customerLevel: String
+)
+
+enum class OrderValidationType {
+   INVENTORY_CHECK, FRAUD_CHECK, ORDER_DETAILS_CHECK
+}
+
+enum class OrderValidationResult {
+   PASS, FAIL, ERROR
+}
+
+class OrderValidation(
+    val orderId: String,
+    val checkType: OrderValidationType,
+    val validationResult: OrderValidationResult
+)
+
+class Payment(
+    val id: String,
+    val orderId: String,
+    val ccy: String,
+    val amount: Double
+)
+```
+
+Регистрация схем Avro в Confluent Schema Registry осуществляется после того, как поднят docker 
+контейнер schema-registry с помощью Gradle Plugin: `id 'com.github.imflog.kafka-schema-registry-gradle-plugin' version "1.12.0" `.
+Чтобы зарегистрировать схемы необходимо настроить плагин. Минимальная настройка:
+```groovy
+schemaRegistry {
+    url = 'http://localhost:8081'
+    quiet = true
+    register {
+        subject('customers-value', 'common/src/main/avro/customer.avsc', 'AVRO')
+        subject('orders.v1-value', 'common/src/main/avro/order.avsc', 'AVRO')
+        subject('orders-enriched.v1-value', 'common/src/main/avro/orderenriched.avsc', 'AVRO')
+        subject('order-validations.v1-value', 'common/src/main/avro/ordervalidation.avsc', 'AVRO')
+        subject('payments.v1-value', 'common/src/main/avro/payment.avsc', 'AVRO')
+    }
+}
+```
+
+При регистрации указываются:
+1. Название схемы. Одним из паттернов нименования является TopicName-value
+2. Путь до файла со схемой
+3. Формат сериализации, в нашем случае - AVRO.
+
+Далее необходимо запустить таску Gradle из корневой директории:
+```shell
+./gradlew registerSchemaTask
+```
+
+Для работы с записями в топиках приложение Kafka Streams должно знать о формате сериализации данных.
+Для этого настраиваются специальные `org.apache.kafka.common.serialization.Serde` классы, которые знают
+как сериализовать/десериализовать ключ/значение.
+Для удобства все настройки помещены в отдельный класс [Schemas]([Schemas.kt](common%2Fsrc%2Fmain%2Fkotlin%2Fru%2Faasmc%2Feventdriven%2Fcommon%2Fschemas%2FSchemas.kt)). 
+Для сгенерированных AVRO классов используется io.confluent.kafka.streams.serdes.avro.SpecificAvroSerde,
+при настройке которого указывается адрес Schema Registry.
+
+```kotlin
+    fun configureSerdes() {
+        val config = hashMapOf<String, Any>(
+            AbstractKafkaSchemaSerDeConfig.SCHEMA_REGISTRY_URL_CONFIG to topicsProps.schemaRegistryUrl
+        )
+        for (topic in ALL.values) {
+            configureSerde(topic.keySerde, config, true)
+            configureSerde(topic.valueSerde, config, false)
+        }
+        configureSerde(ORDER_VALUE_SERDE, config, false)
+    }
+
+    fun configureSerde(serde: Serde<*>, config: Map<String, Any>, isKey: Boolean) {
+        if (serde is SpecificAvroSerde) {
+            serde.configure(config, isKey)
+        }
+    }
+```
+
 
 ## Требования для запуска:
 1. JDK 17 или новее
