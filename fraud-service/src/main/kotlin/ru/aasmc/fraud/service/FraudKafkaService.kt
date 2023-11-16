@@ -38,6 +38,9 @@ class FraudKafkaService(
                 schemas.ORDERS.name,
                 Consumed.with(schemas.ORDERS.keySerde, schemas.ORDERS.valueSerde)
             )
+            .peek { key, value ->
+                log.info("Processing Order {} in Fraud Service.", value)
+            }
             .filter { _, order -> OrderState.CREATED == order.state }
 
         //Create an aggregate of the total value by customer and hold it with the order.
@@ -71,6 +74,9 @@ class FraudKafkaService(
         //Now branch the stream into two, for pass and fail, based on whether the windowed
         // total is over Fraud Limit
         val forks: Map<String, KStream<String, OrderValue>> = ordersWithTotals
+            .peek { key, value ->
+                log.info("Processing OrderValue: {} in FraudService BEFORE branching.", value)
+            }
             .split(Named.`as`("limit-"))
             .branch(
                 { id, orderValue -> orderValue.value >= FRAUD_LIMIT },
@@ -98,11 +104,13 @@ class FraudKafkaService(
                 OrderValidationType.FRAUD_CHECK,
                 OrderValidationResult.FAIL
             )
+        }?.peek { key, value ->
+            log.info("Sending OrderValidation for failed check in Fraud Service to Kafka. Order: {}", value)
         }?.to(
             schemas.ORDER_VALIDATIONS.name,
             Produced.with(
-               keySerde,
-               valueSerde
+                keySerde,
+                valueSerde
             )
         )
 
@@ -112,6 +120,8 @@ class FraudKafkaService(
                 OrderValidationType.FRAUD_CHECK,
                 OrderValidationResult.PASS
             )
+        }?.peek { key, value ->
+            log.info("Sending OrderValidation for passed check in Fraud Service to Kafka. Order: {}", value)
         }?.to(
             schemas.ORDER_VALIDATIONS.name,
             Produced.with(
