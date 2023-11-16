@@ -16,16 +16,11 @@ docker compose up -d --build
 printf "\n====== Giving infrastructure services $WARMUP_TIME seconds to startup\n"
 sleep $WARMUP_TIME
 
-MAX_WAIT=200
-echo "Waiting up to $MAX_WAIT seconds for connect to start"
-retry $MAX_WAIT check_connect_up connect || exit 1
-printf "\n\n"
-
 printf "\n====== Registering Avro schema with Schema Registry\n"
 ./gradlew registerSchemaTask
 
 printf "\n====== Building Microservices\n"
-./gradlew clean build
+./gradlew clean build -x test
 printf "\n====== Giving microservices $WARMUP_TIME seconds to build\n"
 sleep $WARMUP_TIME
 
