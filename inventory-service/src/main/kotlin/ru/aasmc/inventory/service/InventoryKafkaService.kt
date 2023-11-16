@@ -1,5 +1,7 @@
 package ru.aasmc.inventory.service
 
+import io.confluent.kafka.serializers.AbstractKafkaSchemaSerDeConfig
+import org.apache.kafka.common.serialization.Serde
 import org.apache.kafka.common.serialization.Serdes
 import org.apache.kafka.streams.KeyValue
 import org.apache.kafka.streams.StreamsBuilder
@@ -13,6 +15,7 @@ import org.springframework.stereotype.Service
 import ru.aasmc.avro.eventdriven.Order
 import ru.aasmc.avro.eventdriven.OrderState
 import ru.aasmc.avro.eventdriven.Product
+import ru.aasmc.eventdriven.common.props.TopicsProps
 import ru.aasmc.eventdriven.common.schemas.Schemas
 import ru.aasmc.inventory.config.props.InventoryProps
 
@@ -32,24 +35,28 @@ private val log = LoggerFactory.getLogger(InventoryKafkaService::class.java)
 @Service
 class InventoryKafkaService(
     private val schemas: Schemas,
-    private val inventoryProps: InventoryProps
+    private val inventoryProps: InventoryProps,
+    private val topicProps: TopicsProps
 ) {
 
     @Autowired
     fun processStreams(builder: StreamsBuilder) {
+
+
         // Latch onto instances of the orders and inventory topics
         val orders: KStream<String, Order> = builder
             .stream(
                 schemas.ORDERS.name,
-                Consumed.with(schemas.ORDERS.keySerde, schemas.ORDERS.valueSerde)
+                Consumed.with(schemas.ORDERS.keySerde.apply { configureSerde(this, true) },
+                    schemas.ORDERS.valueSerde.apply { configureSerde(this, false) })
             )
 
         val warehouseInventory: KTable<Product, Int> = builder
             .table(
                 schemas.WAREHOUSE_INVENTORY.name,
                 Consumed.with(
-                    schemas.WAREHOUSE_INVENTORY.keySerde,
-                    schemas.WAREHOUSE_INVENTORY.valueSerde
+                    schemas.WAREHOUSE_INVENTORY.keySerde.apply { configureSerde(this, true) },
+                    schemas.WAREHOUSE_INVENTORY.valueSerde.apply { configureSerde(this, false) }
                 )
             )
         // Create a store to reserve inventory whilst the order is processed.
@@ -88,12 +95,18 @@ class InventoryKafkaService(
             .to(
                 schemas.ORDER_VALIDATIONS.name,
                 Produced.with(
-                    schemas.ORDER_VALIDATIONS.keySerde,
-                    schemas.ORDER_VALIDATIONS.valueSerde
+                    schemas.ORDER_VALIDATIONS.keySerde.apply { configureSerde(this, true) },
+                    schemas.ORDER_VALIDATIONS.valueSerde.apply { configureSerde(this, false) }
                 )
             )
-
-
     }
 
+    private fun configureSerde(serde: Serde<*>, isKey: Boolean) {
+        val serdesConfig = hashMapOf<String, Any>(
+            AbstractKafkaSchemaSerDeConfig.SCHEMA_REGISTRY_URL_CONFIG to topicProps.schemaRegistryUrl,
+            AbstractKafkaSchemaSerDeConfig.AUTO_REGISTER_SCHEMAS to false,
+            AbstractKafkaSchemaSerDeConfig.USE_LATEST_VERSION to true,
+        )
+        schemas.configureSerde(serde, serdesConfig, isKey)
+    }
 }

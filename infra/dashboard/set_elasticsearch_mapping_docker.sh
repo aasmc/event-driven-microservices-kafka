@@ -35,5 +35,5 @@ DATA=$( cat << EOF
 EOF
 );
 
-curl -XDELETE http://elasticsearch:9200/orders
+curl -XDELETE http://elasticsearch:9200/orders.v1
 curl -XPUT -H "${HEADER}" --data "${DATA}" 'http://elasticsearch:9200/orders?pretty'

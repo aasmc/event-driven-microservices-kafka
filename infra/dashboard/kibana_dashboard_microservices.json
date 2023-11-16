@@ -12,12 +12,12 @@
         "description": "",
         "version": 1,
         "kibanaSavedObjectMeta": {
-          "searchSourceJSON": "{\"index\":\"orders\",\"query\":{\"match_all\":{}},\"filter\":[]}"
+          "searchSourceJSON": "{\"index\":\"orders.v1\",\"query\":{\"match_all\":{}},\"filter\":[]}"
         }
       }
     },
     {
-      "id": "orders",
+      "id": "orders.v1",
       "type": "index-pattern",
       "version": 6,
       "attributes": {

@@ -16,6 +16,7 @@ spring:
         enable.idempotence: ${kafkaprops.enableIdempotence}
         schema.registry.url: ${kafkaprops.schemaRegistryUrl}
         auto.register.schemas: false
+        use.latest.version: true
     streams:
       application-id: ${spring.application.name}
       bootstrap-servers: ${kafkaprops.bootstrapServers}

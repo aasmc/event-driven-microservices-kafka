@@ -34,6 +34,6 @@ DATA=$( cat << EOF
 
 EOF);
 
-curl -XDELETE http://localhost:9200/orders &> /dev/null
+curl -XDELETE http://localhost:9200/orders.v1 &> /dev/null
 curl -XPUT -H "${HEADER}" --data "${DATA}" 'http://localhost:9200/orders?pretty'
 echo

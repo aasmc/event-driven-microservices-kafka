@@ -1,17 +1,10 @@
 package ru.aasmc.eventdriven.common.props
 
-import io.confluent.kafka.serializers.AbstractKafkaSchemaSerDeConfig
 import org.apache.kafka.clients.admin.NewTopic
-import org.apache.kafka.clients.consumer.ConsumerConfig
-import org.apache.kafka.common.serialization.Serdes
-import org.apache.kafka.streams.StreamsConfig
 import org.springframework.boot.context.properties.ConfigurationPropertiesScan
 import org.springframework.context.annotation.Bean
 import org.springframework.context.annotation.Configuration
 import org.springframework.kafka.annotation.EnableKafka
-import org.springframework.kafka.annotation.EnableKafkaStreams
-import org.springframework.kafka.annotation.KafkaStreamsDefaultConfiguration
-import org.springframework.kafka.config.KafkaStreamsConfiguration
 import org.springframework.kafka.config.TopicBuilder
 import ru.aasmc.eventdriven.common.util.ServiceUtils
 
@@ -19,9 +12,7 @@ import ru.aasmc.eventdriven.common.util.ServiceUtils
 @EnableKafka
 @ConfigurationPropertiesScan
 class Config(
-    private val topicProps: TopicsProps,
-    private val kafkaProps: KafkaProps,
-    private val serviceUtils: ServiceUtils
+    private val topicProps: TopicsProps
 ) {
 
     @Bean

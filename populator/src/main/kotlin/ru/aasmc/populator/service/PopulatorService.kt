@@ -87,7 +87,9 @@ class PopulatorService(
                     .bodyValue(inputOrder)
                     .retrieve()
                     .bodyToMono<String>()
-                    .block()
+                    .subscribe {
+                        log.info("Created order path: $it")
+                    }
                 val payment = Payment("Payment:1234", startingOrderId.toString(), "CZK", 1000.0)
                 sendPayment(payment.id, payment)
                 ++startingOrderId

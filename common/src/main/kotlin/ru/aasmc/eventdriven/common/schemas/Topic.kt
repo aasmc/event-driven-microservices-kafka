@@ -28,7 +28,34 @@ class Topic<K, V>(
     }
 }
 
-class ProductTypeSerde: Serde<Product> {
+class ProductSerializer: Serializer<Product> {
+    override fun serialize(topic: String?, pt: Product): ByteArray {
+        return pt.toString().toByteArray(StandardCharsets.UTF_8)
+    }
+
+    override fun configure(configs: MutableMap<String, *>?, isKey: Boolean) {
+
+    }
+
+    override fun close() {
+
+    }
+
+}
+
+class ProductDeserializer: Deserializer<Product> {
+    override fun deserialize(topic: String?, data: ByteArray): Product {
+        return Product.valueOf(String(data, StandardCharsets.UTF_8))
+    }
+
+    override fun configure(configs: MutableMap<String, *>?, isKey: Boolean) {
+    }
+
+    override fun close() {
+    }
+}
+
+open class ProductTypeSerde: Serde<Product> {
     override fun configure(configs: MutableMap<String, *>?, isKey: Boolean) {
     }
 
@@ -36,32 +63,9 @@ class ProductTypeSerde: Serde<Product> {
 
     }
 
-    override fun serializer(): Serializer<Product> = object: Serializer<Product> {
-        override fun serialize(topic: String?, pt: Product): ByteArray {
-            return pt.toString().toByteArray(StandardCharsets.UTF_8)
-        }
+    override fun serializer(): Serializer<Product> = ProductSerializer()
 
-        override fun configure(configs: MutableMap<String, *>?, isKey: Boolean) {
-
-        }
-
-        override fun close() {
-
-        }
-    }
-
-    override fun deserializer(): Deserializer<Product> = object: Deserializer<Product> {
-        override fun deserialize(topic: String?, data: ByteArray): Product {
-            return Product.valueOf(String(data, StandardCharsets.UTF_8))
-        }
-
-        override fun configure(configs: MutableMap<String, *>?, isKey: Boolean) {
-        }
-
-        override fun close() {
-        }
-
-    }
+    override fun deserializer(): Deserializer<Product> = ProductDeserializer()
 
 }
 
@@ -85,7 +89,10 @@ class Schemas(
 
     private fun configureSerdes() {
         val config = hashMapOf<String, Any>(
-            AbstractKafkaSchemaSerDeConfig.SCHEMA_REGISTRY_URL_CONFIG to topicsProps.schemaRegistryUrl
+            AbstractKafkaSchemaSerDeConfig.SCHEMA_REGISTRY_URL_CONFIG to topicsProps.schemaRegistryUrl,
+//            AbstractKafkaSchemaSerDeConfig.AUTO_REGISTER_SCHEMAS to false,
+//            AbstractKafkaSchemaSerDeConfig.USE_LATEST_VERSION to true,
+//            AbstractKafkaSchemaSerDeConfig.ID_COMPATIBILITY_STRICT to false
         )
         for (topic in ALL.values) {
             configureSerde(topic.keySerde, config, true)
@@ -94,7 +101,7 @@ class Schemas(
         configureSerde(ORDER_VALUE_SERDE, config, false)
     }
 
-    private fun configureSerde(serde: Serde<*>, config: Map<String, Any>, isKey: Boolean) {
+    fun configureSerde(serde: Serde<*>, config: Map<String, Any>, isKey: Boolean) {
         if (serde is SpecificAvroSerde) {
             serde.configure(config, isKey)
         }
