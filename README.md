@@ -345,6 +345,48 @@ fun getOrder(
             }
         }
     }
+
+    private fun fetchLocal(
+       id: String,
+       asyncResponse: DeferredResult<OrderDto>,
+       predicate: (String, Order) -> Boolean
+    ) {
+       log.info("running GET on this node")
+       try {
+          val order = orderStore.get(id)
+          if (order == null || !predicate(id, order)) {
+             log.info("Delaying get as order not present for id $id")
+             outstandingRequests[id] = FilteredResponse(
+                asyncResponse = asyncResponse,
+                predicate = predicate
+             )
+          } else {
+             asyncResponse.setResult(mapper.toDto(order))
+          }
+       } catch (e: InvalidStateStoreException) {
+          log.error("Exception while querying local state store. {}", e.message)
+          outstandingRequests[id] = FilteredResponse(asyncResponse, predicate)
+       }
+    }
+    
+    private fun fetchFromOtherHost(
+       path: String,
+       asyncResponse: DeferredResult<OrderDto>,
+       timeout: Long
+    ) {
+       log.info("Chaining GET to a different instance: {}", path)
+       try {
+          val order = webClientBuilder.build()
+             .get()
+             .uri("$path?timeout=$timeout")
+             .retrieve()
+             .bodyToMono<OrderDto>()
+             .block() ?: throw NotFoundException("FetchFromOtherHost returned null for request: $path")
+          asyncResponse.setResult(order)
+       } catch (swallowed: Exception) {
+          log.warn("FetchFromOtherHost failed.", swallowed)
+       }
+    }
 ```
 
 Для получения информации о том, на каком инстансе хранятся данные о заказе с конкретным ID, 
@@ -373,48 +415,6 @@ Kafka Streams предоставляет API:
             storeNames = hashSetOf(store)
         )
     }
-
-    private fun fetchLocal(
-       id: String,
-       asyncResponse: DeferredResult<OrderDto>,
-       predicate: (String, Order) -> Boolean
-    ) {
-       log.info("running GET on this node")
-       try {
-          val order = orderStore.get(id)
-          if (order == null || !predicate(id, order)) {
-             log.info("Delaying get as order not present for id $id")
-             outstandingRequests[id] = FilteredResponse(
-                asyncResponse = asyncResponse,
-                predicate = predicate
-             )
-          } else {
-             asyncResponse.setResult(mapper.toDto(order))
-          }
-       } catch (e: InvalidStateStoreException) {
-          log.error("Exception while querying local state store. {}", e.message)
-          outstandingRequests[id] = FilteredResponse(asyncResponse, predicate)
-       }
-    }
-
-   private fun fetchFromOtherHost(
-      path: String,
-      asyncResponse: DeferredResult<OrderDto>,
-      timeout: Long
-   ) {
-      log.info("Chaining GET to a different instance: {}", path)
-      try {
-         val order = webClientBuilder.build()
-            .get()
-            .uri("$path?timeout=$timeout")
-            .retrieve()
-            .bodyToMono<OrderDto>()
-            .block() ?: throw NotFoundException("FetchFromOtherHost returned null for request: $path")
-         asyncResponse.setResult(order)
-      } catch (swallowed: Exception) {
-         log.warn("FetchFromOtherHost failed.", swallowed)
-      }
-   }
 ```
 
 При создании заказа, Orders Service отправляет сообщение в топик Kafka orders.v1 с помощью
