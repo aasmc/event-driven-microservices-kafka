@@ -1,6 +1,72 @@
 # Event Driven Microservices With Kafka Streams and ksqlDB
-https://docs.confluent.io/platform/current/tutorials/examples/microservices-orders/docs/index.html
-https://www.confluent.io/blog/building-a-microservices-ecosystem-with-kafka-streams-and-ksql/
+Демо проект по микросервисной архитектуре на основе событий.
+Основан на статьях Confluent: 
+
+1. [Tutorial: Introduction to Streaming Application Development](https://docs.confluent.io/platform/current/tutorials/examples/microservices-orders/docs/index.html)
+
+2. [Building a Microservices Ecosystem with Kafka Streams and KSQL](https://www.confluent.io/blog/building-a-microservices-ecosystem-with-kafka-streams-and-ksql/)
+
+### Стек Технологий
+1. Kotlin
+2. Spring Boot
+3. Apache Kafka
+4. Kafka Streams
+5. ksqlDB
+6. Gradle
+7. Docker / docker-compose
+8. Avro Serialization
+9. Confluent Schema Registry
+10. Kafka Connect
+11. ElasticSearch
+12. SqlLite
+
+### Верхнеруровневое описание архитектуры
+
+![architecture_overview.png](art%2Farchitecture_overview.png)
+
+Центром системы микросервисов является Orders Service, который предоставляет клиентам возможность
+посылать REST запросы на:
+- соднание заказов (POST http://localhost:8000/v1/orders)
+- получение заказа по его ID (GET http://localhost:8000/v1/orders/{id})
+- получение валидированного заказа по его ID (GET http://localhost:8000/v1/orders/{id}/validated)
+
+При создании заказа в Kafka топик orders.v1 посылается соответствующее событие, оно вычитывается
+различными сервисами, отвечающими за валидацию заказа: Inventory Service, Fraud Service и Order Details Service.
+Эти сервисы параллельно и независимо друг от друга осуществляют валидацию заказа, а результат
+PASS или FAIL записывают в топик Kafka order-validations.v1. Validation Aggregator Service 
+вычитывает этот топик, аггрегирует результаты по каждому заказу и отправляет конечный результат
+в топик orders.v1. 
+
+Для реализации GET запросов Orders Service использует материализованное представление 
+(materialized view), которое встроено (embedded) в каждый инстанс Orders Service. Это 
+материализованное представление реализовано на основе Kafka Streams queryable state store. 
+Так как state store основан на топиках Kafka, и встроен в каждый инстанс, он хранит данные
+только тех партиций топика, которые вычитываются данным инстансом. Однако Kafka Streams 
+предоставляет API (Interactive Queries) для того, чтобы "найти" инстанс, на котором хранятся данные, если их 
+нет локально. Это позволяет реализовать гарантию для клиентов read-your-own-writes (чтение своих записей).
+
+Также в системе есть простой сервис для отправки сообщений на почту Email Service (в текущей 
+реализации просто осуществляется логирование отправляемых сообщений). 
+
+Сервис Order Enrichment отвечает за создание orders_enriched_stream в ksqlDB, из которого
+можно получить данные о покупателе и его заказе. Также этот сервис предоставляет REST ручку
+для получения информации о фозможных мошеннических действиях (если покупатель осуществил более 2
+заказов за 30 секунд):
+- GET http://localhost:8010/fraud
+
+Данные о покупателях вычитываются из БД SQLite с помощью Kafka Connect `io.confluent.connect.jdbc.JdbcSourceConnector`
+в топик Kafka customers.
+Конфигурация коннектора: [connector_jdbc_customers_template.config](infra%2Fconnectors%2Fconnector_jdbc_customers_template.config)
+
+Данные о заказах записываются из топика Kafka orders.v1 в индекс orders.v1 ElasticSearch
+с помощью Kafka Connect `io.confluent.connect.elasticsearch.ElasticsearchSinkConnector`.
+Конфигурация коннектора: [connector_elasticsearch_template.config](infra%2Fconnectors%2Fconnector_elasticsearch_template.config)
+
+
+#### Диаграмма микросервисов и топиков Kafka:
+![microservices-diagram.png](art%2Fmicroservices-diagram.png)
+
+Все микросервисы написаны на Kotlin с использованием Kafka Streams и Spring for Apache Kafka. 
 
 ## Требования для запуска:
 1. JDK 17 или новее
