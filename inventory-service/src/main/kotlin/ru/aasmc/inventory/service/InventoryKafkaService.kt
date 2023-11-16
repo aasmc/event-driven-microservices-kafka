@@ -1,6 +1,7 @@
 package ru.aasmc.inventory.service
 
 import io.confluent.kafka.serializers.AbstractKafkaSchemaSerDeConfig
+import io.confluent.kafka.streams.serdes.avro.SpecificAvroSerde
 import org.apache.kafka.common.serialization.Serde
 import org.apache.kafka.common.serialization.Serdes
 import org.apache.kafka.streams.KeyValue
@@ -14,6 +15,7 @@ import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.stereotype.Service
 import ru.aasmc.avro.eventdriven.Order
 import ru.aasmc.avro.eventdriven.OrderState
+import ru.aasmc.avro.eventdriven.OrderValidation
 import ru.aasmc.avro.eventdriven.Product
 import ru.aasmc.eventdriven.common.props.TopicsProps
 import ru.aasmc.eventdriven.common.schemas.Schemas
@@ -47,8 +49,7 @@ class InventoryKafkaService(
         val orders: KStream<String, Order> = builder
             .stream(
                 schemas.ORDERS.name,
-                Consumed.with(schemas.ORDERS.keySerde.apply { configureSerde(this, true) },
-                    schemas.ORDERS.valueSerde.apply { configureSerde(this, false) })
+                Consumed.with(schemas.ORDERS.keySerde, schemas.ORDERS.valueSerde)
             )
             .peek { key, value ->
                 log.info("Orders streams record. Key: {}, Order: {}", key, value)
@@ -58,8 +59,8 @@ class InventoryKafkaService(
             .table(
                 schemas.WAREHOUSE_INVENTORY.name,
                 Consumed.with(
-                    schemas.WAREHOUSE_INVENTORY.keySerde.apply { configureSerde(this, true) },
-                    schemas.WAREHOUSE_INVENTORY.valueSerde.apply { configureSerde(this, false) }
+                    schemas.WAREHOUSE_INVENTORY.keySerde,
+                    schemas.WAREHOUSE_INVENTORY.valueSerde
                 )
             )
         // Create a store to reserve inventory whilst the order is processed.
@@ -71,6 +72,10 @@ class InventoryKafkaService(
             )
             .withLoggingEnabled(hashMapOf())
         builder.addStateStore(reservedStock)
+
+        val orderValidationsKeySerde = Serdes.String()
+        val orderValidationsValueSerde = SpecificAvroSerde<OrderValidation>()
+
 
         //First change orders stream to be keyed by Product (so we can join with warehouse inventory)
         orders.selectKey { id, order -> order.product }
@@ -107,8 +112,8 @@ class InventoryKafkaService(
             .to(
                 schemas.ORDER_VALIDATIONS.name,
                 Produced.with(
-                    schemas.ORDER_VALIDATIONS.keySerde.apply { configureSerde(this, true) },
-                    schemas.ORDER_VALIDATIONS.valueSerde.apply { configureSerde(this, false) }
+                    orderValidationsKeySerde.apply { configureSerde(this, true) },
+                    orderValidationsValueSerde.apply { configureSerde(this, false) }
                 )
             )
     }
