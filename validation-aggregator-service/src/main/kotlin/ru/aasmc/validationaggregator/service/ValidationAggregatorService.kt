@@ -82,6 +82,9 @@ class ValidationAggregatorService(
 
         // if all rules pass then validate the order
         validations
+            .peek { key, value ->
+                log.info("Starting validation for key: {}, value: {}", key, value)
+            }
             .groupByKey(serdes3)
             .windowedBy(SessionWindows.ofInactivityGapWithNoGrace(Duration.ofMinutes(5)))
             .aggregate(
@@ -110,6 +113,9 @@ class ValidationAggregatorService(
                 JoinWindows.ofTimeDifferenceWithNoGrace(Duration.ofMinutes(5)),
                 serdes4
             )
+            .peek { _, value ->
+                log.info("Order {} has been validated and is being sent to Kafka Topic: {}", value, topicProps.ordersTopic)
+            }
             //Push the validated order into the orders topic
             .to(schemas.ORDERS.name, Produced.with(ordersKeySerde, ordersValueSerde))
 
@@ -125,11 +131,17 @@ class ValidationAggregatorService(
                 JoinWindows.ofTimeDifferenceWithNoGrace(Duration.ofMinutes(5)),
                 serdes7
             )
+            .peek { key, value ->
+                log.info("Order {} failed validation. BEFORE groupByKey.", value)
+            }
             //there could be multiple failed rules for each order so collapse to a single order
             .groupByKey(serdes6)
             .reduce { order, v1 -> order }
             //Push the validated order into the orders topic
             .toStream()
+            .peek { key, value ->
+                log.info("Order {} failed validation. AFTER groupByKey.", value)
+            }
             .to(
                 schemas.ORDERS.name,
                 Produced.with(ordersKeySerde, ordersValueSerde)
