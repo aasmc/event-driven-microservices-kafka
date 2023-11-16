@@ -5,6 +5,7 @@ import org.apache.kafka.streams.kstream.Transformer
 import org.apache.kafka.streams.processor.ProcessorContext
 import org.apache.kafka.streams.processor.api.Processor
 import org.apache.kafka.streams.state.KeyValueStore
+import org.slf4j.LoggerFactory
 import ru.aasmc.avro.eventdriven.Order
 import ru.aasmc.avro.eventdriven.OrderValidation
 import ru.aasmc.avro.eventdriven.OrderValidationResult.FAIL
@@ -13,6 +14,7 @@ import ru.aasmc.avro.eventdriven.OrderValidationType.INVENTORY_CHECK
 import ru.aasmc.avro.eventdriven.Product
 import ru.aasmc.inventory.config.props.InventoryProps
 
+private val log = LoggerFactory.getLogger(InventoryValidator::class.java)
 class InventoryValidator(
     private val inventoryProps: InventoryProps
 ) : Transformer<Product, KeyValue<Order, Int>, KeyValue<String, OrderValidation>> {
@@ -30,6 +32,7 @@ class InventoryValidator(
         productId: Product,
         orderAndStock: KeyValue<Order, Int>
     ): KeyValue<String, OrderValidation> {
+        log.info("Start transforming order and stock keyValuePair {} for product with ID = {}", orderAndStock, productId)
         //Process each order/inventory pair one at a time
         val order = orderAndStock.key
         val warehouseStockCount = orderAndStock.value
@@ -39,6 +42,7 @@ class InventoryValidator(
         if (reserved == null) {
             reserved = 0L
         }
+        log.info("Current reserved stock is {}", reserved)
         //If there is enough stock available (considering both warehouse inventory
         // and reserved stock) validate the order
         val validated = if (warehouseStockCount - reserved - order.quantity >= 0) {

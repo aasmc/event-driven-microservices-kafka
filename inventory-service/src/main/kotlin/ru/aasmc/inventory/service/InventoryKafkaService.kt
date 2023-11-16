@@ -50,6 +50,9 @@ class InventoryKafkaService(
                 Consumed.with(schemas.ORDERS.keySerde.apply { configureSerde(this, true) },
                     schemas.ORDERS.valueSerde.apply { configureSerde(this, false) })
             )
+            .peek { key, value ->
+                log.info("Orders streams record. Key: {}, Order: {}", key, value)
+            }
 
         val warehouseInventory: KTable<Product, Int> = builder
             .table(
@@ -71,6 +74,9 @@ class InventoryKafkaService(
 
         //First change orders stream to be keyed by Product (so we can join with warehouse inventory)
         orders.selectKey { id, order -> order.product }
+            .peek { key, value ->
+                log.info("Orders stream record after SELECT KEY. New key: {}. \nNew value: {}", key, value)
+            }
             // Limit to newly created orders
             .filter { id, order -> OrderState.CREATED == order.state }
             //Join Orders to Inventory so we can compare each order to its corresponding stock value
@@ -91,6 +97,12 @@ class InventoryKafkaService(
                 },
                 inventoryProps.reservedStockStoreName
             )
+            .peek { key, value ->
+                log.info(
+                    "Pushing the result of validation Order record to topic: {} with key: {}. \nResult: {}",
+                    schemas.ORDER_VALIDATIONS.name, key, value
+                )
+            }
             //Push the result into the Order Validations topic
             .to(
                 schemas.ORDER_VALIDATIONS.name,
