@@ -20,7 +20,7 @@
 11. ElasticSearch
 12. SqlLite
 
-### Верхнеруровневое описание архитектуры
+### Верхнеуровневое описание архитектуры
 
 ![architecture_overview.png](art%2Farchitecture_overview.png)
 
