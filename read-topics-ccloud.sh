@@ -3,7 +3,7 @@
 ################################
 BOOTSTRAP_SERVERS=kafka:9092
 SCHEMA_REGISTRY_URL=http://schema-registry:8081
-KSQLDB_ENDPOINT=http://ksqldb:8088
+KSQLDB_ENDPOINT=http://localhost:8088
 
 echo -e "\n*** Sampling messages in Kafka topics and ksqlDB ***\n"
 
