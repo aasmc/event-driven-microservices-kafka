@@ -557,6 +557,144 @@ SpecificAvroRecord, и имеет возможность получать дос
 В данном случае для простоты реализации я использую суффикс в виде порта, на котором поднято 
 приложение. Однако, эта лишь демо реализация. 
 
+## [Email Service]([EmailService.kt](email-service%2Fsrc%2Fmain%2Fkotlin%2Fru%2Faasmc%2Femail%2Fservice%2FEmailService.kt)) 
+
+![email-service-join.png](art%2Femail-service-join.png)
+
+Сервис вычитывает данные из нескольких топиков Kafka: `customers`, `payments.v1`, `orders.v1`,
+объединяет их с помощью Kafka Streams, и отправляет сообщение через интерфейс [Emailer]([Emailer.kt](email-service%2Fsrc%2Fmain%2Fkotlin%2Fru%2Faasmc%2Femail%2Fservice%2FEmailer.kt)).
+Кроме того, данные о заказе и покупателе отправляются в топик Kafka, совпадающий с рейтингом
+покупателя: `platinum`, `gold`, `silver`, `bronze`. 
+
+![microservices-exercise-3.png](art%2Fmicroservices-exercise-3.png)
+Настройки Kafka Streams тут аналогичны Orders Service.
+
+Класс EmailService отвечает за создание и обработку `KStream` и `KTable`. Для того,
+чтобы после старта приложения создалась и заработала топология стримов Kafka Streams, необходимо
+ее настроить с помощью `StreamsBuilder`. Для этого достаточно в класс, помеченный аннотацией `@Component` 
+или `@Service` в один из методов заинжектить StreamsBuilder и в этом методе выстроить нужную топологию.
+
+```kotlin
+@Service
+class EmailService(
+    private val emailer: Emailer,
+    private val schemas: Schemas
+) {
+
+    @Autowired
+    fun processStreams(builder: StreamsBuilder) {
+        val orders: KStream<String, Order> = builder.stream(
+            schemas.ORDERS.name,
+            Consumed.with(schemas.ORDERS.keySerde, schemas.ORDERS.valueSerde)
+        )
+        //Create the streams/tables for the join
+        val payments: KStream<String, Payment> = builder.stream(
+            schemas.PAYMENTS.name,
+            Consumed.with(schemas.PAYMENTS.keySerde, schemas.PAYMENTS.valueSerde)
+        )
+            //Rekey payments to be by OrderId for the windowed join
+            .selectKey { s, payment -> payment.orderId }
+
+        val customers: GlobalKTable<Long, Customer> = builder.globalTable(
+            schemas.CUSTOMERS.name,
+            Consumed.with(schemas.CUSTOMERS.keySerde, schemas.CUSTOMERS.valueSerde)
+        )
+
+        val serdes: StreamJoined<String, Order, Payment> = StreamJoined
+            .with(schemas.ORDERS.keySerde, schemas.ORDERS.valueSerde, schemas.PAYMENTS.valueSerde)
+        //Join the two streams and the table then send an email for each
+        orders.join(
+            payments,
+            ::EmailTuple,
+            JoinWindows.ofTimeDifferenceWithNoGrace(Duration.ofMinutes(1)),
+            serdes
+        )
+            //Next join to the GKTable of Customers
+            .join(
+                customers,
+                { _, value -> value.order.customerId },
+                // note how, because we use a GKtable, we can join on any attribute of the Customer.
+                EmailTuple::setCustomer
+            )
+            //Now for each tuple send an email.
+            .peek { _, emailTuple ->
+                emailer.sendEmail(emailTuple)
+            }
+
+        //Send the order to a topic whose name is the value of customer level
+        orders.join(
+            customers,
+            { orderId, order -> order.customerId },
+            { order, customer ->
+                OrderEnriched(order.id, order.customerId, customer.level)
+            }
+        )
+            //TopicNameExtractor to get the topic name (i.e., customerLevel) from the enriched order record being sent
+            .to(
+                TopicNameExtractor { orderId, orderEnriched, record ->
+                    orderEnriched.customerLevel
+                },
+                Produced.with(schemas.ORDERS_ENRICHED.keySerde, schemas.ORDERS_ENRICHED.valueSerde)
+            )
+    }
+
+}
+```
+
+В данном примере следует обратить внимание на несколько моментов. 
+1. `KStream<String, Payment>` создается на основе топика `payments.v1,` в котором ключом является ID платежа,
+   при этом в информации о платеже присутствует поле `orderId`, которое фактически ссылается на сущность
+   `Order`. Kafka Streams поддерживает объединение `KStream` по ключу топика, из которого вычитываются 
+   сообщения. Это называется inner equi join. Но так как в исходных топиках разные ключи, приходится
+   провести re-keying - выбор нового ключа в "правом" стриме с помощью метода `KStream.selectKey()`, 
+   в нашем случае в `KStream<String, Payment>`. Под капотом Kafka Streams создаст еще один топик с
+   таким же количеством партиций, как и в исходном топике и будет отправлять данные из 
+   первоначального топика (`payments.v1`) в новый топик. Теперь этот `KStream`, основанный на 
+   внутреннем топике можно спокойно объединять со стримом `KStream<String, Order>`, так как у них одинаковые
+   ключи записей.
+
+**NB! ВАЖНО** Тут есть один очень важный ньюанс: для того, чтобы Kafka Streams могла провести объединение
+данных исходные топики должны быть ко-партиционированы:
+- должны быть одинаковые ключи
+- должны иметь одинаковое количество партиций
+- должны иметь одинаковую [стратегию партиционирования](https://docs.ksqldb.io/en/latest/developer-guide/joins/partition-data/#records-have-same-partitioning-strategy)
+
+Подробнее об этом в статье [Co-Partitioning with Apache Kafka](https://www.confluent.io/blog/co-partitioning-in-kafka-streams/). 
+
+2. Информация о покупателях собирается в `GlobalKTable<Long, Customer>`. Это означает, что каждый
+   инстанс приложения Email Service будет иметь в своем распоряжении данные обо всех покупателях, в отличие от
+   обычной KTable, которая хранит на инстансе только данные из вычитываемых этим инстансом партиций.
+   Таким образом мы можем объединять KStream с GlobalKTable по любому полю, плюс нет необходимости
+   соблюдать правило о ко-партиционировании топиков. Однако теперь наш инстанс может быть перегружен 
+   как по памяти, так и по сетевому трафику, если топик `customers` будет хранить очень много данных
+   и постоянно пополняться. 
+
+3. При объединении стримов важно понимать, что данные в топики, на основе которых создаются стримы
+   могут попадать не одновременно. Поэтому при объединении стримов используются "окна" объединения - 
+   JoinWindow. В нашем случае при объединении стримов orders и payments мы используем окно в 1 минуту,
+   без какого-либо грейс периода.  `JoinWindows.ofTimeDifferenceWithNoGrace(Duration.ofMinutes(1))`
+   Это означает, что записи, timestamp которых в пределах 1 минуты друг от друга, могут быть объеденины,
+   то есть мы подразумеваем, что создание заказа и его оплата по времени не различаются на 1 минуту. 
+   Записи, которые не попадают в это окно, не будут учитываться при объединении стримов. 
+
+```java
+    /**
+     * Specifies that records of the same key are joinable if their timestamps are within {@code timeDifference},
+     * i.e., the timestamp of a record from the secondary stream is max {@code timeDifference} before or after
+     * the timestamp of the record from the primary stream.
+     * <p>
+     * CAUTION: Using this method implicitly sets the grace period to zero, which means that any out-of-order
+     * records arriving after the window ends are considered late and will be dropped.
+     *
+     * @param timeDifference join window interval
+     * @return a new JoinWindows object with the window definition and no grace period. Note that this means out-of-order records arriving after the window end will be dropped
+     * @throws IllegalArgumentException if {@code timeDifference} is negative or can't be represented as {@code long milliseconds}
+     */
+    public static JoinWindows ofTimeDifferenceWithNoGrace(final Duration timeDifference) {
+        return ofTimeDifferenceAndGrace(timeDifference, Duration.ofMillis(NO_GRACE_PERIOD));
+    }
+```   
+Более подробно о том, какие бывают виды объединений можно прочитать в [документации](https://kafka.apache.org/20/documentation/streams/developer-guide/dsl-api.html#joining). 
 
 ## Требования для запуска:
 1. JDK 17 или новее
