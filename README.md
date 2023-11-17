@@ -467,6 +467,96 @@ spring:
 Confluent рекомендует в проде не предоставлять возможность продъюсерам автоматичски регистрировать
 схему. 
 
+## Order Details Service
+[Сервис отвечает за проверку деталей заказа]([KafkaOrderDetailsService.kt](order-details-service%2Fsrc%2Fmain%2Fkotlin%2Fru%2Faasmc%2Forderdetails%2Fservice%2FKafkaOrderDetailsService.kt)):
+- количество товаров не меньше 0
+- стоимость заказа не меньше 0
+- товар присутствует в заказе
+
+Сообщения вычитываются из топика Kafka `orders.v1`, заказ проверяется, а результат проверки
+отправляется в топик Kafka `order-validations.v1`. В этом сервисе не используется Kafka Streams,
+а используются стандартные Kafka Producer Consumer.
+
+Конфигурация Kafka Consumer:
+```kotlin
+    @Bean
+    fun kafkaListenerContainerFactory(
+        consumerFactory: ConsumerFactory<String, Order>
+    ): ConcurrentKafkaListenerContainerFactory<String, Order> {
+        val factory = ConcurrentKafkaListenerContainerFactory<String, Order>()
+        factory.consumerFactory = consumerFactory
+        return factory
+    }
+
+    @Bean
+    fun consumerFactory(): ConsumerFactory<String, Order> {
+        return DefaultKafkaConsumerFactory(consumerProps())
+    }
+
+    private fun consumerProps(): Map<String, Any> {
+        val props = hashMapOf<String, Any>(
+            ConsumerConfig.BOOTSTRAP_SERVERS_CONFIG to kafkaProps.bootstrapServers,
+            ConsumerConfig.GROUP_ID_CONFIG to kafkaProps.appId,
+            ConsumerConfig.AUTO_OFFSET_RESET_CONFIG to kafkaProps.autoOffsetReset,
+            ConsumerConfig.ENABLE_AUTO_COMMIT_CONFIG to !kafkaProps.enableExactlyOnce,
+            ConsumerConfig.CLIENT_ID_CONFIG to kafkaProps.appId,
+            ConsumerConfig.KEY_DESERIALIZER_CLASS_CONFIG to schemas.ORDERS.keySerde.deserializer()::class.java,
+            ConsumerConfig.VALUE_DESERIALIZER_CLASS_CONFIG to schemas.ORDERS.valueSerde.deserializer()::class.java,
+            AbstractKafkaSchemaSerDeConfig.SCHEMA_REGISTRY_URL_CONFIG to kafkaProps.schemaRegistryUrl,
+            "specific.avro.reader" to true
+        )
+        return props
+    }
+```
+
+Здесь важно обратить внимание на конфигурацию `specific.avro.reader: true`. Она сообщает
+консъюмеру, что он вычитывает не обобщенный AVRO тип записи (GenericAvroRecord), а конкретный тип
+SpecificAvroRecord, и имеет возможность получать доступ к полям и методам без необходимости кастить
+к конкретному типу.
+
+Конфигурация Kafka Producer:
+```kotlin
+    @Bean
+    fun producerFactory(): ProducerFactory<String, OrderValidation> {
+        return DefaultKafkaProducerFactory(senderProps())
+    }
+
+    private fun senderProps(): Map<String, Any> {
+        val props = hashMapOf<String, Any>(
+            ProducerConfig.BOOTSTRAP_SERVERS_CONFIG to kafkaProps.bootstrapServers,
+            ProducerConfig.ENABLE_IDEMPOTENCE_CONFIG to kafkaProps.enableIdempotence,
+            ProducerConfig.RETRIES_CONFIG to Int.MAX_VALUE.toString(),
+            ProducerConfig.ACKS_CONFIG to kafkaProps.acks,
+            ProducerConfig.CLIENT_ID_CONFIG to kafkaProps.appId,
+            ProducerConfig.VALUE_SERIALIZER_CLASS_CONFIG to schemas.ORDER_VALIDATIONS.valueSerde.serializer().javaClass.name,
+            ProducerConfig.KEY_SERIALIZER_CLASS_CONFIG to schemas.ORDER_VALIDATIONS.keySerde.serializer().javaClass.name,
+            AbstractKafkaSchemaSerDeConfig.SCHEMA_REGISTRY_URL_CONFIG to kafkaProps.schemaRegistryUrl,
+            AbstractKafkaSchemaSerDeConfig.AUTO_REGISTER_SCHEMAS to false,
+            AbstractKafkaSchemaSerDeConfig.USE_LATEST_VERSION to true,
+        )
+        if (kafkaProps.enableExactlyOnce) {
+            // attempt to provide a unique transactional ID which is a recommended practice
+            props[ProducerConfig.TRANSACTIONAL_ID_CONFIG] = "${kafkaProps.appId}-${applicationProps.port}"
+        }
+        return props
+    }
+
+    @Bean
+    fun kafkaTemplate(
+        producerFactory: ProducerFactory<String, OrderValidation>
+    ): KafkaTemplate<String, OrderValidation> {
+        return KafkaTemplate(producerFactory)
+    }
+```
+Тут стоит обратить внимание на две вещи. Первая, как уже было сказано выше - мы запрещаем продъюсеру
+автоматически регистрировать схемы в Schema Registry, а также указываем использовать последнюю
+версию схемы при сериализации данных. Второй момент касается настройки `ProducerConfig.TRANSACTIONAL_ID_CONFIG`,
+эта настройка должна быть уникальной для каждого инстанса приложения, чтобы Kafka могла гарантировать
+корректную работу с транзакциями в случае падения приложения. При этом важно понимать, что
+уникальный - не значит рандомный. То есть, за инстансом должен быть закреплен свой `TRANSACTIONAL_ID`.
+В данном случае для простоты реализации я использую суффикс в виде порта, на котором поднято 
+приложение. Однако, эта лишь демо реализация. 
+
 
 ## Требования для запуска:
 1. JDK 17 или новее
