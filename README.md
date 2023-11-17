@@ -76,8 +76,8 @@ PASS или FAIL записывают в топик Kafka order-validations.v1. 
 Данный модуль собран как библиотека, которую используют микросервисы. Содержит сгенерированный AVRO классы
 а также утиллитные классы, облегчающие работу с топиками, сериализаторами и десериализаторами. 
 #### Сущности
-Генерация сущностей, с которыми работает Kafka осуществляется [на основе схем Avro]([avro](https://github.com/aasmc/event-driven-microservices-kafka/tree/master/common/src/main/avro)) с помощью
-Gradle plugin `id 'com.github.davidmc24.gradle.plugin.avro' version "1.9.1"`, на этапе сборки
+Генерация сущностей, с которыми работает Kafka осуществляется [на основе схем Avro](https://github.com/aasmc/event-driven-microservices-kafka/tree/master/common/src/main/avro) 
+с помощью Gradle plugin `id 'com.github.davidmc24.gradle.plugin.avro' version "1.9.1"`, на этапе сборки
 библиотеки common. Ниже приведено описание сущностей без дополнительного сгенерированного кода.
 ```kotlin
 class Customer(
@@ -169,7 +169,7 @@ schemaRegistry {
 Для работы с записями в топиках приложение Kafka Streams должно знать о формате сериализации данных.
 Для этого настраиваются специальные `org.apache.kafka.common.serialization.Serde` классы, которые знают
 как сериализовать/десериализовать ключ/значение.
-Для удобства все настройки помещены в отдельный класс [Schemas]([Schemas.kt](https://github.com/aasmc/event-driven-microservices-kafka/blob/master/common/src/main/kotlin/ru/aasmc/eventdriven/common/schemas/Schemas.kt)). 
+Для удобства все настройки помещены в отдельный класс [Schemas](https://github.com/aasmc/event-driven-microservices-kafka/blob/master/common/src/main/kotlin/ru/aasmc/eventdriven/common/schemas/Schemas.kt). 
 Для сгенерированных AVRO классов используется `io.confluent.kafka.streams.serdes.avro.SpecificAvroSerde`,
 при настройке которого указывается адрес Schema Registry.
 
@@ -467,8 +467,8 @@ spring:
 Confluent рекомендует в проде не предоставлять возможность продъюсерам автоматичски регистрировать
 схему. 
 
-## Order Details Service
-[Сервис отвечает за проверку деталей заказа]([KafkaOrderDetailsService.kt](https://github.com/aasmc/event-driven-microservices-kafka/blob/master/order-details-service/src/main/kotlin/ru/aasmc/orderdetails/service/KafkaOrderDetailsService.kt)):
+## [Order Details Service](https://github.com/aasmc/event-driven-microservices-kafka/blob/master/order-details-service/src/main/kotlin/ru/aasmc/orderdetails/service/KafkaOrderDetailsService.kt)
+Сервис отвечает за проверку деталей заказа:
 - количество товаров не меньше 0
 - стоимость заказа не меньше 0
 - товар присутствует в заказе
@@ -557,12 +557,12 @@ SpecificAvroRecord, и имеет возможность получать дос
 В данном случае для простоты реализации я использую суффикс в виде порта, на котором поднято 
 приложение. Однако, эта лишь демо реализация. 
 
-## [Email Service]([EmailService.kt](https://github.com/aasmc/event-driven-microservices-kafka/blob/master/email-service/src/main/kotlin/ru/aasmc/email/service/EmailService.kt)) 
+## [Email Service](https://github.com/aasmc/event-driven-microservices-kafka/blob/master/email-service/src/main/kotlin/ru/aasmc/email/service/EmailService.kt)
 
 ![email-service-join.png](art%2Femail-service-join.png)
 
 Сервис вычитывает данные из нескольких топиков Kafka: `customers`, `payments.v1`, `orders.v1`,
-объединяет их с помощью Kafka Streams, и отправляет сообщение через интерфейс [Emailer]([Emailer.kt](https://github.com/aasmc/event-driven-microservices-kafka/blob/master/email-service/src/main/kotlin/ru/aasmc/email/service/Emailer.kt)).
+объединяет их с помощью Kafka Streams, и отправляет сообщение через интерфейс [Emailer](https://github.com/aasmc/event-driven-microservices-kafka/blob/master/email-service/src/main/kotlin/ru/aasmc/email/service/Emailer.kt).
 Кроме того, данные о заказе и покупателе отправляются в топик Kafka, совпадающий с рейтингом
 покупателя: `platinum`, `gold`, `silver`, `bronze`. 
 
