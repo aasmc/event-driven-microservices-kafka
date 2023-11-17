@@ -674,7 +674,7 @@ class EmailService(
    JoinWindow. В нашем случае при объединении стримов orders и payments мы используем окно в 1 минуту,
    без какого-либо грейс периода.  `JoinWindows.ofTimeDifferenceWithNoGrace(Duration.ofMinutes(1))`
    Это означает, что записи, timestamp которых в пределах 1 минуты друг от друга, могут быть объеденины,
-   то есть мы подразумеваем, что создание заказа и его оплата по времени не различаются на 1 минуту. 
+   то есть мы подразумеваем, что создание заказа и его оплата по времени не различаются на +-1 минуту. 
    Записи, которые не попадают в это окно, не будут учитываться при объединении стримов. 
 
 ```java
@@ -695,6 +695,188 @@ class EmailService(
     }
 ```   
 Более подробно о том, какие бывают виды объединений можно прочитать в [документации](https://kafka.apache.org/20/documentation/streams/developer-guide/dsl-api.html#joining).
+
+## [Fraud Service ](https://github.com/aasmc/event-driven-microservices-kafka/blob/master/fraud-service/src/main/kotlin/ru/aasmc/fraud/service/FraudKafkaService.kt)
+
+![microservices-fraud-service.png](art%2Fmicroservices-fraud-service.png)
+
+Сервис отвечает за поиск потенциально мошеннических транзакций: если пользователь сделал
+заказы на более чем 2 тыс в течение сессии взаимодействия с сервером (подробнее ниже по тексту),
+то все такие заказы не проходят валидацию.  
+
+Конфигурация Kafka Streams немного отличается от предыдущих:
+
+```kotlin
+    @Bean(name = [KafkaStreamsDefaultConfiguration.DEFAULT_STREAMS_CONFIG_BEAN_NAME])
+    fun kStreamsConfig(): KafkaStreamsConfiguration {
+        val props = hashMapOf<String, Any>(
+            StreamsConfig.APPLICATION_ID_CONFIG to kafkaProps.appId,
+            // must be specified to enable InteractiveQueries and checking metadata of Kafka Cluster
+            StreamsConfig.APPLICATION_SERVER_CONFIG to serviceUtils.getServerAddress(),
+            StreamsConfig.BOOTSTRAP_SERVERS_CONFIG to kafkaProps.bootstrapServers,
+            StreamsConfig.DEFAULT_KEY_SERDE_CLASS_CONFIG to Serdes.String().javaClass.name,
+            // instances MUST have different stateDir
+            StreamsConfig.STATE_DIR_CONFIG to kafkaProps.stateDir,
+            ConsumerConfig.AUTO_OFFSET_RESET_CONFIG to kafkaProps.autoOffsetReset,
+            StreamsConfig.PROCESSING_GUARANTEE_CONFIG to kafkaProps.processingGuarantee,
+            StreamsConfig.COMMIT_INTERVAL_MS_CONFIG to kafkaProps.commitInterval,
+            AbstractKafkaSchemaSerDeConfig.SCHEMA_REGISTRY_URL_CONFIG to topicProps.schemaRegistryUrl,
+            StreamsConfig.consumerPrefix(ConsumerConfig.SESSION_TIMEOUT_MS_CONFIG) to kafkaProps.sessionTimeout,
+            // disable caching to ensure a complete aggregate changelog.
+            // This is a little trick we need to apply
+            // as caching in Kafka Streams will conflate subsequent updates for the same key.
+            // Disabling caching ensures
+            // we get a complete "changelog" from the aggregate(...)
+            // (i.e. every input event will have a corresponding output event.
+            // https://cwiki.apache.org/confluence/pages/viewpage.action?pageId=186878390
+            StreamsConfig.STATESTORE_CACHE_MAX_BYTES_CONFIG to "0"
+        )
+        return KafkaStreamsConfiguration(props)
+    }
+```
+Стоит пояснить, что в этом сервисе будет использоваться аггрегация данных, вследствие чего Kafka Streams
+будет задействовать state store для хранения состояния аггрегированных данных. В этом случае мы
+отключаем кэширование данных на инстансе, так как кэширование может привести к объединению 
+последовательных событий при работе со state store во время аггрегации данных, в то время как мы хотим
+обрабатывать каждую запись в процессе аггрегации. Более подробно об этом в статье [Kafka Streams Memory Management](https://docs.confluent.io/platform/current/streams/developer-guide/memory-mgmt.html).
+
+На первом этапе работы сервиса создается узел аггрегации стрима KStream<String, Order>:
+
+```kotlin
+        val orders: KStream<String, Order> = builder
+            .stream(
+                schemas.ORDERS.name,
+                Consumed.with(schemas.ORDERS.keySerde, schemas.ORDERS.valueSerde)
+            )
+            .peek { key, value ->
+                log.info("Processing Order {} in Fraud Service.", value)
+            }
+            .filter { _, order -> OrderState.CREATED == order.state }
+
+        // Create an aggregate of the total value by customer and hold it with the order.
+        // We use session windows to detect periods of activity.
+        val aggregate: KTable<Windowed<Long>, OrderValue> = orders
+            // creates a repartition internal topic if the value to be grouped by differs from
+            // the key and downstream nodes need the new key
+            .groupBy(
+                { id, order -> order.customerId },
+                Grouped.with(Serdes.Long(), schemas.ORDERS.valueSerde)
+            )
+            .windowedBy(SessionWindows.ofInactivityGapWithNoGrace(Duration.ofHours(1)))
+            .aggregate(
+                ::OrderValue,
+                { custId, order, total ->
+                    OrderValue(order, total.value + order.quantity * order.price)
+                },
+                { k, a, b ->
+                    simpleMerge(a, b)
+                },//include a merger as we're using session windows.,
+                Materialized.with(null, schemas.ORDER_VALUE_SERDE)
+            )
+
+private fun simpleMerge(a: OrderValue?, b: OrderValue): OrderValue {
+   return OrderValue(b.order, (a?.value ?: 0.0) + b.value)
+}
+```
+Стоит обратить внимание на то, что при группировке по ключу, отличающемуся от ключа исходного топика
+будет создан внутренний служебный топик Kafka, с таким же количеством партиций, что и исходный топик.
+В нашем примере используется другой тип окна для аггрегации данных - `SessionWindows.ofInactivityGapWithNoGrace(Duration.ofHours(1))`
+Это означает, что данные будут попадать в аггрегацию в течение сессии активности пользователя. Сессия 
+закрывается, когда в топик не поступают данные в течение указанного периода времени. Более подробно в статье
+[Create session windows](https://developer.confluent.io/tutorials/create-session-windows/confluent.html).
+
+На втором этапе мы избавляемся от данных об "окнах" и делаем re-keying записей по `orderId`:
+```kotlin
+        val ordersWithTotals: KStream<String, OrderValue> = aggregate
+            .toStream { windowedKey, orderValue -> windowedKey.key() }
+            //When elements are evicted from a session window they create delete events. Filter these out.
+            .filter { k, v -> v != null }
+            .selectKey { id, orderValue -> orderValue.order.id }
+```
+
+На третьем этапе мы формируем две "ветки" стримов:
+- одна содержит значения больше FRAUD_LIMIT
+- вторая - меньше FRAUD_LIMIT
+
+```kotlin
+        //Now branch the stream into two, for pass and fail, based on whether the windowed
+        // total is over Fraud Limit
+        val forks: Map<String, KStream<String, OrderValue>> = ordersWithTotals
+            .peek { key, value ->
+                log.info("Processing OrderValue: {} in FraudService BEFORE branching.", value)
+            }
+            .split(Named.`as`("limit-"))
+            .branch(
+                { id, orderValue -> orderValue.value >= FRAUD_LIMIT },
+                Branched.`as`("above")
+            )
+            .branch(
+                { id, orderValue -> orderValue.value < FRAUD_LIMIT },
+                Branched.`as`("below")
+            )
+            .noDefaultBranch()
+```
+
+На следующем этапе значения из каждой "ветки" будут отправлены в топик `order-validations.v1`, 
+с соответствующим результатом: FAIL или PASS.
+
+```kotlin
+val keySerde = schemas.ORDER_VALIDATIONS.keySerde
+val valueSerde = schemas.ORDER_VALIDATIONS.valueSerde
+val config = hashMapOf<String, Any>(
+   AbstractKafkaSchemaSerDeConfig.SCHEMA_REGISTRY_URL_CONFIG to topicProps.schemaRegistryUrl,
+   AbstractKafkaSchemaSerDeConfig.AUTO_REGISTER_SCHEMAS to false,
+   AbstractKafkaSchemaSerDeConfig.USE_LATEST_VERSION to true,
+)
+keySerde.configure(config, true)
+valueSerde.configure(config, false)
+
+forks["limit-above"]?.mapValues { orderValue ->
+   OrderValidation(
+      orderValue.order.id,
+      OrderValidationType.FRAUD_CHECK,
+      OrderValidationResult.FAIL
+   )
+}?.peek { key, value ->
+   log.info("Sending OrderValidation for failed check in Fraud Service to Kafka. Order: {}", value)
+}?.to(
+   schemas.ORDER_VALIDATIONS.name,
+   Produced.with(
+      keySerde,
+      valueSerde
+   )
+)
+
+forks["limit-below"]?.mapValues { orderValue ->
+   OrderValidation(
+      orderValue.order.id,
+      OrderValidationType.FRAUD_CHECK,
+      OrderValidationResult.PASS
+   )
+}?.peek { key, value ->
+   log.info("Sending OrderValidation for passed check in Fraud Service to Kafka. Order: {}", value)
+}?.to(
+   schemas.ORDER_VALIDATIONS.name,
+   Produced.with(
+      schemas.ORDER_VALIDATIONS.keySerde,
+      schemas.ORDER_VALIDATIONS.valueSerde
+   )
+)
+```
+#### Примечание.
+В процессе тестирования реализации у меня возникла проблема с тем, что в некоторых случаях
+Kafka Streams пыталась отправить данные в топик, предварительно автоматически зарегистрировав 
+новую схему данных в Schema Registry, при этом новая схема была несовместима со старой, что 
+останавливало Kafka Streams. Попытки отключить автоматическую регистрацию схем для сериализаторов / десериализаторов
+Kafka Streams также приводили к остановке приложения из-за того, что Kafka Streams регулярно под
+капотом создает новые топики и должна иметь возможность регистрировать их схемы. При этом стоит заметить,
+что остановка приложения Kafka Streams не приводит к падению инстанса - он-то как раз и продолжает
+работать, поэтому в проде придется настраивать отдельный мониторинг жизнеспособности приложений Kafka Streams.
+
+Путем долгих мытарств решение (скорее заплатка) было найдено: там, где Kafka Streams отправляет
+аггрегированные или объединенные данные в уже созданный топик Kafka с зарегистрированной в 
+Schema Registry схемой, я отключил возможность Serdes автоматически регистрировать новые схемы. 
+
 
 ## Требования для запуска:
 1. JDK 17 или новее
