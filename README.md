@@ -1080,7 +1080,117 @@ class InventoryKafkaService(
 ```
 
 ## Order Enrichment Service
-TBD
+Сервис использует Java клиент ksqlDB, для того, чтобы создать в ksqlDB stream, который содержит 
+информацию как о покупателе, так и о заказе. Данные из этого стрима можно получить, непосредственно
+обратившись к ksqlDB как через Java клиент, так и другими способами. 
+
+```kotlin
+    private val CREATE_ORDERS_STREAM = "CREATE SOURCE STREAM IF NOT EXISTS ${ksqlDBProps.ordersStream} (" +
+                "ID STRING KEY, " +
+                "CUSTOMERID BIGINT, " +
+                "STATE STRING, " +
+                "PRODUCT STRING, " +
+                "QUANTITY INT, " +
+                "PRICE DOUBLE) WITH (" +
+                "kafka_topic='${topicProps.ordersTopic}'," +
+                " value_format='AVRO'" +
+            ");"
+
+    private val CREATE_CUSTOMERS_TABLE = """
+          CREATE SOURCE TABLE IF NOT EXISTS ${ksqlDBProps.customersTable} (
+              CUSTOMERID BIGINT PRIMARY KEY, 
+              FIRSTNAME STRING, 
+              LASTNAME STRING, 
+              EMAIL STRING, 
+              ADDRESS STRING, 
+              LEVEL STRING
+          ) WITH (
+              KAFKA_TOPIC='${topicProps.customersTopic}',
+              VALUE_FORMAT='AVRO'
+          );
+    """
+
+    private val CREATE_ORDERS_ENRICHED_STREAM = """
+        CREATE STREAM IF NOT EXISTS ${ksqlDBProps.ordersEnrichedStream} 
+            AS SELECT ${ksqlDBProps.customersTable}.CUSTOMERID AS customerId, 
+                      ${ksqlDBProps.customersTable}.FIRSTNAME, 
+                      ${ksqlDBProps.customersTable}.LASTNAME, 
+                      ${ksqlDBProps.customersTable}.LEVEL, 
+                      ${ksqlDBProps.ordersStream}.PRODUCT, 
+                      ${ksqlDBProps.ordersStream}.QUANTITY, 
+                      ${ksqlDBProps.ordersStream}.PRICE 
+            FROM ${ksqlDBProps.ordersStream} 
+            LEFT JOIN ${ksqlDBProps.customersTable} 
+                 ON ${ksqlDBProps.ordersStream}.CUSTOMERID = ${ksqlDBProps.customersTable}.CUSTOMERID;
+       """
+```
+
+Помимо этого также создается таблица, содержащая информацию о потенциально мошеннических
+действиях клиентов:
+```kotlin
+
+    private val CREATE_FRAUD_ORDER_TABLE = """
+        CREATE TABLE IF NOT EXISTS ${ksqlDBProps.fraudOrderTable} 
+        WITH (KEY_FORMAT='json')  
+        AS SELECT CUSTOMERID, 
+                  LASTNAME, 
+                  FIRSTNAME, 
+                  COUNT(*) AS COUNTS 
+           FROM ${ksqlDBProps.ordersEnrichedStream}  
+           WINDOW TUMBLING (SIZE 30 SECONDS) 
+           GROUP BY CUSTOMERID, LASTNAME, FIRSTNAME 
+           HAVING COUNT(*)>2; 
+    """
+```
+
+Сервис выставляет наружу REST endpoint, по которому можно получить данные о потенциальных
+мошенниках:
+```kotlin
+data class FraudDto(
+   val customerId: Long,
+   val lastName: String,
+   val firstName: String,
+   val counts: Long
+)
+
+
+@RestController
+@RequestMapping("/fraud")
+class FraudController(
+    private val fraudService: FraudService
+) {
+
+    @GetMapping
+    fun getFraudulentOrders(
+        @RequestParam(name = "limit", defaultValue = "10") limit: Int
+    ): List<FraudDto> {
+        log.info("Received request to GET $limit number of fraudulent orders.")
+        return fraudService.getFraudulentOrders(limit)
+    }
+
+}
+
+@Service
+class FraudServiceImpl(
+   private val client: Client,
+   private val ksqlDBProps: KsqlDBProps
+) : FraudService {
+   override fun getFraudulentOrders(limit: Int): List<FraudDto> {
+      log.info("Executing getFraudulentOrders stream query.")
+      val frauds = client.executeQuery("SELECT * FROM ${ksqlDBProps.fraudOrderTable} LIMIT $limit;").get()
+      return frauds.map(::mapRowToResponse)
+   }
+
+   private fun mapRowToResponse(row: Row): FraudDto {
+      log.info("Mapping ksqlDB Query row: {}", row)
+      val cusId = row.getLong("CUSTOMERID")
+      val lastName = row.getString("LASTNAME")
+      val firstName = row.getString("FIRSTNAME")
+      val count = row.getLong("COUNTS")
+      return FraudDto(cusId, lastName, firstName, count)
+   }
+}
+```
 
 ## [Validation Aggregator Service](https://github.com/aasmc/event-driven-microservices-kafka/blob/master/validation-aggregator-service/src/main/kotlin/ru/aasmc/validationaggregator/service/ValidationAggregatorService.kt)
 Простой сервис, отвечающий за вычитывание данных из топика `order-validations.v1`, куда отправляют
