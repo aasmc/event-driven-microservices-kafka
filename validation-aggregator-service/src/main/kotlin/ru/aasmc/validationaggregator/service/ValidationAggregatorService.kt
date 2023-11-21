@@ -45,13 +45,10 @@ class ValidationAggregatorService(
     private val serdes4: StreamJoined<String, Long, Order> = StreamJoined
         .with(schemas.ORDERS.keySerde, Serdes.Long(), schemas.ORDERS.valueSerde)
 
-    private val serdes5: Produced<String, Order> = Produced
+    private val serdes5: Grouped<String, Order> = Grouped
         .with(schemas.ORDERS.keySerde, schemas.ORDERS.valueSerde)
 
-    private val serdes6: Grouped<String, Order> = Grouped
-        .with(schemas.ORDERS.keySerde, schemas.ORDERS.valueSerde)
-
-    private val serdes7: StreamJoined<String, OrderValidation, Order> = StreamJoined
+    private val serdes6: StreamJoined<String, OrderValidation, Order> = StreamJoined
         .with(schemas.ORDERS.keySerde, schemas.ORDER_VALIDATIONS.valueSerde, schemas.ORDERS.valueSerde)
 
 
@@ -129,13 +126,13 @@ class ValidationAggregatorService(
                     Order.newBuilder(order).setState(OrderState.FAILED).build()
                 },
                 JoinWindows.ofTimeDifferenceWithNoGrace(Duration.ofMinutes(5)),
-                serdes7
+                serdes6
             )
             .peek { key, value ->
                 log.info("Order {} failed validation. BEFORE groupByKey.", value)
             }
             //there could be multiple failed rules for each order so collapse to a single order
-            .groupByKey(serdes6)
+            .groupByKey(serdes5)
             .reduce { order, v1 -> order }
             //Push the validated order into the orders topic
             .toStream()
