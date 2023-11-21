@@ -884,9 +884,205 @@ Kafka Streams также приводили к остановке приложе
 
 Путем долгих мытарств решение (скорее заплатка) было найдено: там, где Kafka Streams отправляет
 аггрегированные или объединенные данные в уже созданный топик Kafka с зарегистрированной в 
-Schema Registry схемой, я отключил возможность Serdes автоматически регистрировать новые схемы. 
+Schema Registry схемой, я отключил возможность Serdes автоматически регистрировать новые схемы.
 
-## Validation Aggregator Service
+## [Inventory Service](https://github.com/aasmc/event-driven-microservices-kafka/blob/master/inventory-service/src/main/kotlin/ru/aasmc/inventory/service/InventoryKafkaService.kt)
+Вычитывает данные о заказах из топика `orders.v1` и валидирует на предмет наличия требуемого количества
+товаров в заказе. Валидация учитывает как те товары, которые есть на "складе", так и те, которые
+зарезервированы (на них есть действующие заказы). На текущий момент, не реализована логика снижения 
+количества товаров на "складе" - это должно происходить, например, при отправке заказа покупателю
+через службу доставки. "Склад" - представляет из себя топик Kafka `warehouse-inventory.v1`,
+где ключем записи является название товара, а значением - количество. 
+
+Основной сервис `InventoryKafkaService` создает `KStream<String, Order>` на основе топика `orders.v1`:
+```kotlin
+val orders: KStream<String, Order> = builder
+   .stream(
+      schemas.ORDERS.name,
+      Consumed.with(schemas.ORDERS.keySerde, schemas.ORDERS.valueSerde)
+   )
+   .peek { key, value ->
+      log.info("Orders streams record. Key: {}, Order: {}", key, value)
+   }
+```
+
+`KTable<Product, Int>` на основе топика `warehouse-inventory.v1`:
+```kotlin
+val warehouseInventory: KTable<Product, Int> = builder
+    .table(
+       schemas.WAREHOUSE_INVENTORY.name,
+       Consumed.with(
+          schemas.WAREHOUSE_INVENTORY.keySerde,
+          schemas.WAREHOUSE_INVENTORY.valueSerde
+       )
+    )
+```
+
+а также материализованный `KeyValueStore<Product, Long>`, хранящий информацию о зарезервированных
+товарах:
+
+```kotlin
+val reservedStock: StoreBuilder<KeyValueStore<Product, Long>> = Stores
+    .keyValueStoreBuilder(
+       Stores.persistentKeyValueStore(inventoryProps.reservedStockStoreName),
+       schemas.WAREHOUSE_INVENTORY.keySerde, Serdes.Long()
+    )
+    .withLoggingEnabled(hashMapOf())
+builder.addStateStore(reservedStock)
+```
+
+После этого мы делаем re-keying стрима `KStream<String, Order>` по ключу product. Тут стоит
+напомнить, что под капотом Kafka Streams пометит этот KStream как подлежащий репартиционированию, 
+и в случае необходимости (ниже будет join или аггрегация), произойдет репартиционирование.
+Далее в стрим попадают только заказы в состоянии CREATED, которые объединяются с таблицей зарезервированных
+товаров. После объединения получаем новый `KStream`, каждая запись которого проходит валидацию
+и отправляется в топик `order-validations.v1`. 
+
+```kotlin
+   orders.selectKey { id, order -> order.product }
+            .peek { key, value ->
+                log.info("Orders stream record after SELECT KEY. New key: {}. \nNew value: {}", key, value)
+            }
+            // Limit to newly created orders
+            .filter { id, order -> OrderState.CREATED == order.state }
+            //Join Orders to Inventory so we can compare each order to its corresponding stock value
+            .join(
+                warehouseInventory,
+                ::KeyValue,
+                Joined.with(
+                    schemas.WAREHOUSE_INVENTORY.keySerde,
+                    schemas.ORDERS.valueSerde,
+                    Serdes.Integer()
+                )
+            )
+            //Validate the order based on how much stock we have both in the warehouse
+            // and locally 'reserved' stock
+            .transform(
+                TransformerSupplier {
+                    InventoryValidator(inventoryProps)
+                },
+                inventoryProps.reservedStockStoreName
+            )
+            .peek { key, value ->
+                log.info(
+                    "Pushing the result of validation Order record to topic: {} with key: {}. \nResult: {}",
+                    schemas.ORDER_VALIDATIONS.name, key, value
+                )
+            }
+            //Push the result into the Order Validations topic
+            .to(
+                schemas.ORDER_VALIDATIONS.name,
+                Produced.with(
+                    orderValidationsKeySerde.apply { configureSerde(this, true) },
+                    orderValidationsValueSerde.apply { configureSerde(this, false) }
+                )
+            )
+```
+
+Полная реализация класса:
+```kotlin
+private val log = LoggerFactory.getLogger(InventoryKafkaService::class.java)
+
+@Service
+class InventoryKafkaService(
+    private val schemas: Schemas,
+    private val inventoryProps: InventoryProps,
+    private val topicProps: TopicsProps
+) {
+
+    @Autowired
+    fun processStreams(builder: StreamsBuilder) {
+
+
+        // Latch onto instances of the orders and inventory topics
+        val orders: KStream<String, Order> = builder
+            .stream(
+                schemas.ORDERS.name,
+                Consumed.with(schemas.ORDERS.keySerde, schemas.ORDERS.valueSerde)
+            )
+            .peek { key, value ->
+                log.info("Orders streams record. Key: {}, Order: {}", key, value)
+            }
+
+        val warehouseInventory: KTable<Product, Int> = builder
+            .table(
+                schemas.WAREHOUSE_INVENTORY.name,
+                Consumed.with(
+                    schemas.WAREHOUSE_INVENTORY.keySerde,
+                    schemas.WAREHOUSE_INVENTORY.valueSerde
+                )
+            )
+        // Create a store to reserve inventory whilst the order is processed.
+        // This will be prepopulated from Kafka before the service starts processing
+        val reservedStock: StoreBuilder<KeyValueStore<Product, Long>> = Stores
+            .keyValueStoreBuilder(
+                Stores.persistentKeyValueStore(inventoryProps.reservedStockStoreName),
+                schemas.WAREHOUSE_INVENTORY.keySerde, Serdes.Long()
+            )
+            .withLoggingEnabled(hashMapOf())
+        builder.addStateStore(reservedStock)
+
+        val orderValidationsKeySerde = Serdes.String()
+        val orderValidationsValueSerde = SpecificAvroSerde<OrderValidation>()
+
+
+        //First change orders stream to be keyed by Product (so we can join with warehouse inventory)
+        orders.selectKey { id, order -> order.product }
+            .peek { key, value ->
+                log.info("Orders stream record after SELECT KEY. New key: {}. \nNew value: {}", key, value)
+            }
+            // Limit to newly created orders
+            .filter { id, order -> OrderState.CREATED == order.state }
+            //Join Orders to Inventory so we can compare each order to its corresponding stock value
+            .join(
+                warehouseInventory,
+                ::KeyValue,
+                Joined.with(
+                    schemas.WAREHOUSE_INVENTORY.keySerde,
+                    schemas.ORDERS.valueSerde,
+                    Serdes.Integer()
+                )
+            )
+            //Validate the order based on how much stock we have both in the warehouse
+            // and locally 'reserved' stock
+            .transform(
+                TransformerSupplier {
+                    InventoryValidator(inventoryProps)
+                },
+                inventoryProps.reservedStockStoreName
+            )
+            .peek { key, value ->
+                log.info(
+                    "Pushing the result of validation Order record to topic: {} with key: {}. \nResult: {}",
+                    schemas.ORDER_VALIDATIONS.name, key, value
+                )
+            }
+            //Push the result into the Order Validations topic
+            .to(
+                schemas.ORDER_VALIDATIONS.name,
+                Produced.with(
+                    orderValidationsKeySerde.apply { configureSerde(this, true) },
+                    orderValidationsValueSerde.apply { configureSerde(this, false) }
+                )
+            )
+    }
+
+    private fun configureSerde(serde: Serde<*>, isKey: Boolean) {
+        val serdesConfig = hashMapOf<String, Any>(
+            AbstractKafkaSchemaSerDeConfig.SCHEMA_REGISTRY_URL_CONFIG to topicProps.schemaRegistryUrl,
+            AbstractKafkaSchemaSerDeConfig.AUTO_REGISTER_SCHEMAS to false,
+            AbstractKafkaSchemaSerDeConfig.USE_LATEST_VERSION to true,
+        )
+        schemas.configureSerde(serde, serdesConfig, isKey)
+    }
+}
+
+```
+
+## Order Enrichment Service
+TBD
+
+## [Validation Aggregator Service](https://github.com/aasmc/event-driven-microservices-kafka/blob/master/validation-aggregator-service/src/main/kotlin/ru/aasmc/validationaggregator/service/ValidationAggregatorService.kt)
 Простой сервис, отвечающий за вычитывание данных из топика `order-validations.v1`, куда отправляют
 сообщения сервисы проверки заказов: Inventory Service, Fraud Service и Order Details Service.
 После того, как от каждого валидатора будет получен ответ по конкретному заказу, в топик `orders.v1`
