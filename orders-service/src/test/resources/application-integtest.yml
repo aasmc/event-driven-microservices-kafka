@@ -1,0 +1,62 @@
+spring:
+  application:
+    name: order-service
+  kafka:
+    bootstrap-servers: ${kafkaprops.bootstrapServers}
+    producer:
+      key-serializer: org.apache.kafka.common.serialization.StringSerializer
+      value-serializer: io.confluent.kafka.serializers.KafkaAvroSerializer
+      bootstrap-servers: ${kafkaprops.bootstrapServers}
+      acks: ${kafkaprops.acks}
+      client-id: ${kafkaprops.clientId}
+      properties:
+        enable.idempotence: ${kafkaprops.enableIdempotence}
+        schema.registry.url: ${kafkaprops.schemaRegistryUrl}
+        auto.register.schemas: true
+    streams:
+      application-id: ${spring.application.name}
+      bootstrap-servers: ${kafkaprops.bootstrapServers}
+      state-dir: ${kafkaprops.stateDir}
+      properties:
+        schema.registry.url: ${kafkaprops.schemaRegistryUrl}
+
+
+
+kafkaprops:
+  bootstrapServers: localhost:9092
+  schemaRegistryUrl: mock://orders-service-test
+  autoOffsetReset: earliest
+  processingGuarantee: at_least_once
+  commitInterval: 1
+  sessionTimeout: 30000
+  stateDir: "/tmp/kafka-streams-orders"
+  appId: ${spring.application.name}
+  enableIdempotence: false
+  acks: all
+  clientId: ${spring.application.name}
+  enableExactlyOnce: false
+
+ordersprops:
+  topic: orders.v1
+  partitions: 3
+  replication: 1
+  storeName: orders-store
+
+application:
+  host: localhost
+  port: ${server.port}
+
+topicprops:
+  ordersTopic: orders.v1
+  ordersEnrichedTopic: orders-enriched.v1
+  inventoryTopic: warehouse-inventory.v1
+  orderValidationTopic: order-validations.v1
+  paymentsTopic: payments.v1
+  customersTopic: customers
+  platinumTopic: platinum
+  goldTopic: gold
+  silverTopic: silver
+  bronzeTopic: bronze
+  schemaRegistryUrl: mock://orders-service-test
+  partitions: 3
+  replication: 1

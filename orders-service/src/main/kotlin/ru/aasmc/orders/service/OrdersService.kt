@@ -162,7 +162,7 @@ class OrdersService(
                     asyncResponse = asyncResponse,
                     predicate = predicate
                 )
-            } else {
+            } else if (!asyncResponse.isSetOrExpired) {
                 asyncResponse.setResult(mapper.toDto(order))
             }
         } catch (e: InvalidStateStoreException) {
