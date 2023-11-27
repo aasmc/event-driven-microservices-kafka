@@ -20,58 +20,14 @@ import java.time.Duration
  */
 @Service
 class EmailService(
-    private val emailer: Emailer,
-    private val schemas: Schemas
+    private val schemas: Schemas,
+    private val ordersCustomers: KStream<String, OrderEnriched>
 ) {
 
     @Autowired
     fun processStreams(builder: StreamsBuilder) {
-        val orders: KStream<String, Order> = builder.stream(
-            schemas.ORDERS.name,
-            Consumed.with(schemas.ORDERS.keySerde, schemas.ORDERS.valueSerde)
-        )
-        //Create the streams/tables for the join
-        val payments: KStream<String, Payment> = builder.stream(
-            schemas.PAYMENTS.name,
-            Consumed.with(schemas.PAYMENTS.keySerde, schemas.PAYMENTS.valueSerde)
-        )
-            //Rekey payments to be by OrderId for the windowed join
-            .selectKey { s, payment -> payment.orderId }
-
-        val customers: GlobalKTable<Long, Customer> = builder.globalTable(
-            schemas.CUSTOMERS.name,
-            Consumed.with(schemas.CUSTOMERS.keySerde, schemas.CUSTOMERS.valueSerde)
-        )
-
-        val serdes: StreamJoined<String, Order, Payment> = StreamJoined
-            .with(schemas.ORDERS.keySerde, schemas.ORDERS.valueSerde, schemas.PAYMENTS.valueSerde)
-        //Join the two streams and the table then send an email for each
-        orders.join(
-            payments,
-            ::EmailTuple,
-            JoinWindows.ofTimeDifferenceWithNoGrace(Duration.ofMinutes(1)),
-            serdes
-        )
-            //Next join to the GKTable of Customers
-            .join(
-                customers,
-                { _, value -> value.order.customerId },
-                // note how, because we use a GKtable, we can join on any attribute of the Customer.
-                EmailTuple::setCustomer
-            )
-            //Now for each tuple send an email.
-            .peek { _, emailTuple ->
-                emailer.sendEmail(emailTuple)
-            }
-
         //Send the order to a topic whose name is the value of customer level
-        orders.join(
-            customers,
-            { orderId, order -> order.customerId },
-            { order, customer ->
-                OrderEnriched(order.id, order.customerId, customer.level)
-            }
-        )
+        ordersCustomers
             //TopicNameExtractor to get the topic name (i.e., customerLevel) from the enriched order record being sent
             .to(
                 TopicNameExtractor { orderId, orderEnriched, record ->

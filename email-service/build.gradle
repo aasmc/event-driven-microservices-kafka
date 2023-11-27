@@ -65,6 +65,7 @@ dependencies {
     testImplementation 'org.springframework.boot:spring-boot-testcontainers'
     testImplementation 'org.testcontainers:junit-jupiter'
     testImplementation 'org.testcontainers:kafka'
+    testImplementation 'org.apache.kafka:kafka-streams-test-utils:3.6.0'
 }
 
 tasks.withType(KotlinCompile) {
