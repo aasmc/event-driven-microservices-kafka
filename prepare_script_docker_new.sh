@@ -10,7 +10,7 @@ check_connect_up() {
   return 0
 }
 
-WARMUP_TIME=180
+WARMUP_TIME=10
 printf "\n====== Starting infrastructure services in Docker\n"
 docker compose up -d --build
 printf "\n====== Giving infrastructure services $WARMUP_TIME seconds to startup\n"
@@ -19,6 +19,7 @@ sleep $WARMUP_TIME
 printf "\n====== Registering Avro schema with Schema Registry\n"
 ./gradlew registerSchemaTask
 
+WARMUP_TIME=100
 printf "\n====== Building Microservices\n"
 ./gradlew clean build -x test
 printf "\n====== Giving microservices $WARMUP_TIME seconds to build\n"
@@ -30,5 +31,5 @@ printf "\n====== Configuring Elasticsearch mappings\n"
 printf "\n====== Submitting connectors\n\n"
 ./scripts/create_connectors.sh
 
-printf "\n\n====== Configuring Kibana Dashboard\n"
-./infra/dashboard/configure_kibana_dashboard.sh
+#printf "\n\n====== Configuring Kibana Dashboard\n"
+#./infra/dashboard/configure_kibana_dashboard.sh
