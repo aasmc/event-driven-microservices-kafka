@@ -21,8 +21,7 @@ printf "\n====== Registering Avro schema with Schema Registry\n"
 
 printf "\n====== Building Microservices\n"
 ./gradlew clean build -x test
-printf "\n====== Giving microservices $WARMUP_TIME seconds to build\n"
-sleep $WARMUP_TIME
+
 
 printf "\n====== Configuring Elasticsearch mappings\n"
 ./infra/dashboard/set_elasticsearch_mapping.sh
