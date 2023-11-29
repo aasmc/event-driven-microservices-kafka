@@ -1,6 +1,7 @@
 package ru.aasmc.fraud.service
 
 import io.confluent.kafka.serializers.AbstractKafkaSchemaSerDeConfig
+import io.confluent.kafka.streams.serdes.avro.SpecificAvroSerde
 import org.apache.kafka.common.serialization.Serdes
 import org.apache.kafka.streams.StreamsBuilder
 import org.apache.kafka.streams.kstream.*
@@ -8,7 +9,6 @@ import org.slf4j.LoggerFactory
 import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.stereotype.Service
 import ru.aasmc.avro.eventdriven.*
-import ru.aasmc.eventdriven.common.props.KafkaProps
 import ru.aasmc.eventdriven.common.props.TopicsProps
 import ru.aasmc.eventdriven.common.schemas.Schemas
 import java.time.Duration
@@ -88,14 +88,13 @@ class FraudKafkaService(
             )
             .noDefaultBranch()
 
-        val keySerde = schemas.ORDER_VALIDATIONS.keySerde
-        val valueSerde = schemas.ORDER_VALIDATIONS.valueSerde
+        val keySerde = Serdes.String()
+        val valueSerde = SpecificAvroSerde<OrderValidation>()
         val config = hashMapOf<String, Any>(
             AbstractKafkaSchemaSerDeConfig.SCHEMA_REGISTRY_URL_CONFIG to topicProps.schemaRegistryUrl,
             AbstractKafkaSchemaSerDeConfig.AUTO_REGISTER_SCHEMAS to false,
             AbstractKafkaSchemaSerDeConfig.USE_LATEST_VERSION to true,
         )
-        keySerde.configure(config, true)
         valueSerde.configure(config, false)
 
         forks["limit-above"]?.mapValues { orderValue ->
@@ -125,8 +124,8 @@ class FraudKafkaService(
         }?.to(
             schemas.ORDER_VALIDATIONS.name,
             Produced.with(
-                schemas.ORDER_VALIDATIONS.keySerde,
-                schemas.ORDER_VALIDATIONS.valueSerde
+                keySerde,
+                valueSerde
             )
         )
     }
