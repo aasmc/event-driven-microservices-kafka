@@ -1,9 +1,6 @@
 package ru.aasmc.fraud.service
 
 import io.confluent.kafka.schemaregistry.testutil.MockSchemaRegistry
-import io.confluent.kafka.serializers.AbstractKafkaSchemaSerDeConfig
-import io.confluent.kafka.streams.serdes.avro.SpecificAvroSerde
-import org.apache.kafka.common.serialization.Serdes.StringSerde
 import org.apache.kafka.streams.*
 import org.assertj.core.api.AssertionsForInterfaceTypes.assertThat
 import org.junit.jupiter.api.AfterEach
@@ -55,10 +52,7 @@ class FraudKafkaServiceTest {
         val topology = builder.build()
         val props = Properties()
         props[StreamsConfig.APPLICATION_ID_CONFIG] = "test"
-        props[StreamsConfig.BOOTSTRAP_SERVERS_CONFIG] = "dummy:1234"
-        props[StreamsConfig.DEFAULT_KEY_SERDE_CLASS_CONFIG] = StringSerde::class.java
-        props[StreamsConfig.DEFAULT_VALUE_SERDE_CLASS_CONFIG] = SpecificAvroSerde::class.java
-        props[AbstractKafkaSchemaSerDeConfig.SCHEMA_REGISTRY_URL_CONFIG] = topicsProps.schemaRegistryUrl
+        props["schema.registry.url"] = topicsProps.schemaRegistryUrl
         testDriver = TopologyTestDriver(topology, props)
         ordersTopic = testDriver.createInputTopic(
             schemas.ORDERS.name,

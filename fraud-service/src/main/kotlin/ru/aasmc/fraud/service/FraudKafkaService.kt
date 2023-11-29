@@ -1,9 +1,9 @@
 package ru.aasmc.fraud.service
 
 import io.confluent.kafka.serializers.AbstractKafkaSchemaSerDeConfig
+import io.confluent.kafka.streams.serdes.avro.SpecificAvroSerde
 import org.apache.kafka.common.serialization.Serdes
 import org.apache.kafka.streams.StreamsBuilder
-import org.apache.kafka.streams.Topology
 import org.apache.kafka.streams.kstream.*
 import org.slf4j.LoggerFactory
 import org.springframework.beans.factory.annotation.Autowired
@@ -27,7 +27,7 @@ private const val FRAUD_LIMIT = 2000
 @Service
 class FraudKafkaService(
     private val schemas: Schemas,
-    private val topicProps: TopicsProps,
+    private val topicProps: TopicsProps
 ) {
 
     @Autowired
@@ -87,8 +87,8 @@ class FraudKafkaService(
                 )
                 .noDefaultBranch()
 
-        val keySerde = schemas.ORDER_VALIDATIONS.keySerde
-        val valueSerde = schemas.ORDER_VALIDATIONS.valueSerde
+        val keySerde = Serdes.String()
+        val valueSerde = SpecificAvroSerde<OrderValidation>()
         val config = hashMapOf<String, Any>(
             AbstractKafkaSchemaSerDeConfig.SCHEMA_REGISTRY_URL_CONFIG to topicProps.schemaRegistryUrl,
             AbstractKafkaSchemaSerDeConfig.AUTO_REGISTER_SCHEMAS to false,
@@ -124,8 +124,8 @@ class FraudKafkaService(
         }?.to(
             schemas.ORDER_VALIDATIONS.name,
             Produced.with(
-                schemas.ORDER_VALIDATIONS.keySerde,
-                schemas.ORDER_VALIDATIONS.valueSerde
+                keySerde,
+                valueSerde
             )
         )
     }
