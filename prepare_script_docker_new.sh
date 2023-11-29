@@ -10,7 +10,7 @@ check_connect_up() {
   return 0
 }
 
-WARMUP_TIME=180
+WARMUP_TIME=60
 printf "\n====== Starting infrastructure services in Docker\n"
 docker compose up -d --build
 printf "\n====== Giving infrastructure services $WARMUP_TIME seconds to startup\n"
