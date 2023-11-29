@@ -7,7 +7,6 @@ import org.springframework.context.event.ContextRefreshedEvent
 import org.springframework.stereotype.Component
 import ru.aasmc.eventdriven.common.props.TopicsProps
 import ru.aasmc.ksqldb.config.props.KsqlDBProps
-import java.util.concurrent.TimeUnit
 
 private val log = LoggerFactory.getLogger(KsqlDBInitializer::class.java)
 
@@ -18,7 +17,7 @@ class KsqlDBInitializer(
     ksqlDBProps: KsqlDBProps,
 ) : ApplicationListener<ContextRefreshedEvent> {
 
-    private val CREATE_ORDERS_STREAM = "CREATE SOURCE STREAM IF NOT EXISTS ${ksqlDBProps.ordersStream} (" +
+    private val CREATE_ORDERS_STREAM = "CREATE STREAM IF NOT EXISTS ${ksqlDBProps.ordersStream} (" +
                 "ID STRING KEY, " +
                 "CUSTOMERID BIGINT, " +
                 "STATE STRING, " +
@@ -30,7 +29,7 @@ class KsqlDBInitializer(
             ");"
 
     private val CREATE_CUSTOMERS_TABLE = """
-          CREATE SOURCE TABLE IF NOT EXISTS ${ksqlDBProps.customersTable} (
+          CREATE TABLE IF NOT EXISTS ${ksqlDBProps.customersTable} (
               CUSTOMERID BIGINT PRIMARY KEY, 
               FIRSTNAME STRING, 
               LASTNAME STRING, 
