@@ -18,7 +18,7 @@ class KsqlDBInitializer(
     ksqlDBProps: KsqlDBProps,
 ) : ApplicationListener<ContextRefreshedEvent> {
 
-    private val CREATE_ORDERS_STREAM = "CREATE SOURCE STREAM IF NOT EXISTS ${ksqlDBProps.ordersStream} (" +
+    private val CREATE_ORDERS_STREAM = "CREATE STREAM IF NOT EXISTS ${ksqlDBProps.ordersStream} (" +
                 "ID STRING KEY, " +
                 "CUSTOMERID BIGINT, " +
                 "STATE STRING, " +
@@ -30,7 +30,7 @@ class KsqlDBInitializer(
             ");"
 
     private val CREATE_CUSTOMERS_TABLE = """
-          CREATE SOURCE TABLE IF NOT EXISTS ${ksqlDBProps.customersTable} (
+          CREATE TABLE IF NOT EXISTS ${ksqlDBProps.customersTable} (
               CUSTOMERID BIGINT PRIMARY KEY, 
               FIRSTNAME STRING, 
               LASTNAME STRING, 
